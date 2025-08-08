@@ -1,22 +1,21 @@
 export const SiteConfig = {
-  title: "NOW.TS",
-  description: "Collect and showcase powerful video and text testimonials",
+  title: "Analyseur web pro",
+  description: "Analysez votre site web pour améliorer votre référencement",
   prodUrl: "https://demo.nowts.app",
   appId: "nowts",
   domain: "demo.nowts.app",
   appIcon: "/images/icon.png",
   company: {
-    name: "NowTS",
-    address: "", // Remove if not needed
+    name: "InnovWebDesign",
+    address: "29 impasse du Bouillet, 25220 Roche lez Beaupré", // Remove if not needed
   },
   brand: {
     primary: "#007291", // You can adjust this to your brand color
   },
   team: {
     image: "https://melvynx.com/images/me/twitter-en.jpg",
-    website: "https://melvynx.com",
-    twitter: "https://twitter.com/melvyn_me",
-    name: "Melvynx",
+    website: "https://innovwebdesign.com",
+    name: "Régis Laffond",
   },
   features: {
     /**

@@ -26,6 +26,7 @@ Create a new resource with complete CRUD functionality including database schema
    - Follow user requirements for specific features
 
 ## Components to Use
+
 - Card component for layout
 - Table component for data display
 - Server components for performance

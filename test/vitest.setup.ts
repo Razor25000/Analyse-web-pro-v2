@@ -134,7 +134,6 @@ vi.mock("@/lib/organizations/get-org", () => ({
 // Define the type for our global helper
 
 declare global {
-   
   var createTestSearchParams: (
     params?: Record<string, string>,
   ) => ReadonlyURLSearchParams;

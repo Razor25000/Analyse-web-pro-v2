@@ -22,9 +22,7 @@ export const setup = (
 
   // Wrap component with QueryClientProvider
   const wrappedJsx = (
-    <QueryClientProvider client={queryClient}>
-      {jsx}
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{jsx}</QueryClientProvider>
   );
 
   return {

@@ -12,7 +12,7 @@ export function Pricing() {
 
   return (
     <section className="from-background to-muted/20 w-full bg-gradient-to-b py-12 md:py-24 lg:py-32">
-      <div className="container px-4 md:px-6">
+      <div className="mx-auto max-w-5xl px-4 md:px-6">
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
           <div className="space-y-2">
             <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
@@ -59,14 +59,11 @@ export function Pricing() {
           </div>
         </div>
 
-        <div
-          className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-2 lg:gap-12"
-          style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          }}
-        >
+        <div className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-16">
           {AUTH_PLANS.filter((p) => !p.isHidden).map((plan) => (
-            <PricingCard key={plan.name} plan={plan} isYearly={isYearly} />
+            <div key={plan.name} className="min-w-[340px]">
+              <PricingCard plan={plan} isYearly={isYearly} />
+            </div>
           ))}
         </div>
 

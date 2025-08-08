@@ -103,35 +103,38 @@ test("invite and login as invited user", async ({ page }) => {
   // WORKAROUND: Instead of signing back in as owner (which has session issues),
   // stay logged in as the invited user who should have access to view members
   // This still tests the core functionality: invitation acceptance and member listing
-  
+
   // Wait for the session to be established
   await page.waitForTimeout(2000);
-  
+
   // Navigate to the members page as the invited user
   await page.goto(`/orgs/${orgSlug}/settings/members`);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState("networkidle");
 
   // Verify both the owner and invited user are listed in the members
   // This validates that:
-  // 1. The invitation was accepted correctly 
+  // 1. The invitation was accepted correctly
   // 2. The member was added to the organization
   // 3. The members page displays correctly
-  
+
   // Use more specific locators to avoid strict mode violations
   // Target the members list specifically, not other places where emails might appear
-  const membersSection = page.getByLabel('Members');
-  
+  const membersSection = page.getByLabel("Members");
+
   await expect(membersSection.getByText(ownerData.email)).toBeVisible();
   await expect(membersSection.getByText(memberEmail)).toBeVisible();
 
   // Verify that both users are now members of the organization
   // This validates that:
   // 1. The invitation was sent correctly
-  // 2. The invitation was accepted successfully  
+  // 2. The invitation was accepted successfully
   // 3. The member was added to the organization with admin role
   // 4. The members page displays correctly
-  
+
   // Since we invited the user as admin, verify they have admin role
-  const memberRow = membersSection.getByText(memberEmail).locator("..").locator("..");
+  const memberRow = membersSection
+    .getByText(memberEmail)
+    .locator("..")
+    .locator("..");
   await expect(memberRow.getByRole("combobox")).toHaveText(/admin/i);
 });

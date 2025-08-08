@@ -23,7 +23,7 @@ const config: PlaywrightTestConfig = {
   workers: 3,
   globalTeardown: require.resolve("./e2e/global-teardown.ts"),
   // Enable console logs in CI
-  reporter: process.env.CI ? [['list'], ['html']] : 'list',
+  reporter: process.env.CI ? [["list"], ["html"]] : "list",
   use: {
     launchOptions: {
       slowMo: 200,
