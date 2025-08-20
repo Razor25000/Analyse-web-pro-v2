@@ -76,7 +76,7 @@
     "markdown-to-jsx": "^7.7.12",
     "mini-svg-data-uri": "^1.4.4",
     "motion": "^12.23.7",
-    "nanoid": "^5.1.5",
+    "nanoid": "5",
     "next": "15.4.3",
     "next-mdx-remote-client": "^2.1.2",
     "next-safe-action": "^8.0.8",
