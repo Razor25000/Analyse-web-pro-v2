@@ -313,6 +313,36 @@ export class SupabaseBridge {
   }
 
   /**
+   * Récupère les audits d'une organisation
+   * @param orgId - ID de l'organisation
+   * @returns Liste des audits de l'organisation
+   */
+  static async getOrgAudits(orgId: string) {
+    if (!supabase) {
+      console.warn("Supabase not available - returning empty audits");
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("audits")
+        .select("*")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching org audits:", error);
+        throw new Error("Failed to fetch org audits");
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error("Error in getOrgAudits:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Récupère les quotas et leur statut pour un utilisateur
    * @param userEmail - Email de l'utilisateur
    * @returns Informations complètes sur les quotas

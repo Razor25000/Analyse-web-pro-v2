@@ -112,6 +112,11 @@ export const SingleAuditSchema = z.object({
   email: z.string().email(),
   deliveryMethod: z.enum(["email", "dashboard"]),
 });
+
+export const BatchAuditSchema = z.object({
+  csvData: z.string().min(10, 'CSV trop court'),
+  batchName: z.string().optional(),
+});
 ```
 
 **HMAC pour webhooks** :
