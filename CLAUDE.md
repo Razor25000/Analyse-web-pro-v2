@@ -100,6 +100,7 @@ Accès BD métier via **Supabase** (si présent) :
 ```
 POST /api/orgs/[orgSlug]/audits/single
 POST /api/orgs/[orgSlug]/audits/batch
+GET  /api/orgs/[orgSlug]/audits/status        # nouveauté Phase 4
 GET  /api/orgs/[orgSlug]/audits/status/[runId]
 POST /api/orgs/[orgSlug]/audits/webhook/n8n  # callbacks
 ```
@@ -117,6 +118,21 @@ export const BatchAuditSchema = z.object({
   csvData: z.string().min(10, 'CSV trop court'),
   batchName: z.string().optional(),
 });
+```
+
+**API Status (Phase 4)** : Récupération du statut des audits d'une organisation.
+
+```ts
+// GET /api/orgs/[orgSlug]/audits/status
+// Réponse format:
+{
+  success: true,
+  audits: FormattedAudit[],  // Liste des audits formatés
+  stats: AuditStats,         // Statistiques agrégées
+  quota: QuotaInfo,          // Informations quota
+  organization: OrgInfo,     // Infos organisation
+  meta: MetaInfo            // Métadonnées
+}
 ```
 
 **HMAC pour webhooks** :
