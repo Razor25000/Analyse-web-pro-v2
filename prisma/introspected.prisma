@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model Feedback {
+  id        String   @id
+  review    Int
+  message   String
+  email     String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  user      user?    @relation(fields: [userId], references: [id])
+}
+
+model account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model audit_logs {
+  id             String       @id
+  organizationId String
+  userId         String
+  action         String
+  resourceType   String
+  resourceId     String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model audit_quotas {
+  id             String       @id
+  organizationId String       @unique
+  monthlyLimit   Int          @default(100)
+  usedThisMonth  Int          @default(0)
+  resetDate      DateTime
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model invitation {
+  id             String       @id
+  organizationId String
+  email          String
+  role           String?
+  status         String
+  expiresAt      DateTime
+  inviterId      String
+  user           user         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model member {
+  id             String       @id
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model organization {
+  id           String        @id
+  name         String
+  slug         String?       @unique
+  logo         String?
+  createdAt    DateTime
+  metadata     String?
+  email        String?
+  audit_logs   audit_logs[]
+  audit_quotas audit_quotas?
+  invitation   invitation[]
+  member       member[]
+}
+
+model session {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String   @unique
+  createdAt            DateTime
+  updatedAt            DateTime
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  activeOrganizationId String?
+  user                 user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model subscription {
+  id                   String    @id
+  plan                 String
+  referenceId          String
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  status               String?
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  cancelAtPeriodEnd    Boolean?
+  seats                Int?
+}
+
+model supabase_syncs {
+  id             String   @id
+  userId         String   @unique
+  supabaseUserId String?  @unique
+  lastSyncAt     DateTime @default(now())
+  syncStatus     String   @default("pending")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  user           user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model user {
+  id               String          @id
+  name             String
+  email            String          @unique
+  emailVerified    Boolean
+  image            String?
+  createdAt        DateTime
+  updatedAt        DateTime
+  resendContactId  String?
+  stripeCustomerId String?
+  Feedback         Feedback[]
+  account          account[]
+  audit_logs       audit_logs[]
+  invitation       invitation[]
+  member           member[]
+  session          session[]
+  supabase_syncs   supabase_syncs?
+}
+
+model verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+}

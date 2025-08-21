@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx:*)",
+      "Bash(git push:*)",
+      "Bash(pnpm better-auth:migrate:*)",
+      "Bash(NODE_ENV=development npx pnpm better-auth:migrate)",
+      "Bash(NODE_ENV=development RESEND_API_KEY=dummy EMAIL_FROM=test@example.com STRIPE_SECRET_KEY=dummy NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=dummy NEXT_PUBLIC_EMAIL_CONTACT=test@example.com npx pnpm better-auth:migrate)",
+      "Bash(powershell:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(pnpm ts:*)",
+      "Bash(pnpm test:ci:*)",
+      "Bash(pnpm lint:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -19,6 +19,11 @@ export const env = createEnv({
     STRIPE_SECRET_KEY: z.string().min(1),
     NODE_ENV: z.enum(["development", "production", "test"]),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    SUPABASE_URL: z.string().url().optional(),
+    SUPABASE_ANON_KEY: z.string().optional(),
+    SUPABASE_SERVICE_KEY: z.string().optional(),
+    N8N_BASE_URL: z.string().url().optional(),
+    N8N_WEBHOOK_SECRET: z.string().optional(),
   },
   /**
    * If you add `client` environment variables, you need to add them to

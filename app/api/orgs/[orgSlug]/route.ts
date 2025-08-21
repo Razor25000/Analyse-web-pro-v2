@@ -4,7 +4,7 @@ import { z } from "zod";
 export const POST = orgRoute
   .params(
     z.object({
-      orgId: z.string(),
+      orgSlug: z.string(),
     }),
   )
   .metadata({
