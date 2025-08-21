@@ -6,9 +6,9 @@ import { Plus, FileText, Upload, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 
 interface AuditPageProps {
-  params: {
+  params: Promise<{
     orgSlug: string;
-  };
+  }>;
 }
 
 // Composant pour les stats (sera dynamique plus tard)
@@ -110,7 +110,9 @@ function RecentAudits() {
   );
 }
 
-export default function AuditsPage({ params }: AuditPageProps) {
+export default async function AuditsPage({ params }: AuditPageProps) {
+  const { orgSlug } = await params;
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -124,14 +126,14 @@ export default function AuditsPage({ params }: AuditPageProps) {
         
         <div className="flex space-x-2">
           <Button asChild>
-            <Link href={`/orgs/${params.orgSlug}/audits/new`}>
+            <Link href={`/orgs/${orgSlug}/audits/new`}>
               <Plus className="mr-2 h-4 w-4" />
               Nouvel Audit
             </Link>
           </Button>
           
           <Button variant="outline" asChild>
-            <Link href={`/orgs/${params.orgSlug}/audits/batch`}>
+            <Link href={`/orgs/${orgSlug}/audits/batch`}>
               <Upload className="mr-2 h-4 w-4" />
               Upload CSV
             </Link>
