@@ -3,13 +3,12 @@
     "playwright": {
       "type": "stdio",
       "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@playwright/mcp@latest"
-      ],
+      "args": ["/c", "npx", "-y", "@playwright/mcp@latest"],
       "env": {}
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com"
     }
   }
 }

@@ -9,9 +9,17 @@
       "Bash(cd *)",
       "Bash(ls *)",
       "Bash(node *)",
+      "Bash(npx *)",
       "WebFetch(:*)",
       "Edit(:*)",
       "mcp_context7"
-    ]
+    ],
+    "deny": [],
+    "defaultMode": "acceptEdits"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash \".claude/statusbar.sh\"",
+    "padding": 0
   }
 }

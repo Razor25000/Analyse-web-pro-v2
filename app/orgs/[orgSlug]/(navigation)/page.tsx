@@ -10,8 +10,7 @@ import type { PageParams } from "@/types/next";
 import Link from "next/link";
 import InformationCards from "./information-cards";
 import { SubscribersChart } from "./subscribers-charts";
-// Import the hasPermission function from its module
-import { hasPermission } from "@/lib/permissions"; // Update the path as needed
+import { hasPermission } from "@/lib/auth/auth-org";
 
 export default async function RoutePage(
   props: PageParams<{
