@@ -44,14 +44,37 @@ const Form = <T extends FieldValues>({
   submitOnBlur = false,
   ...props
 }: FormProps<T>) => {
+  // Safety check: ensure form is properly initialized
+  if (!form?.handleSubmit) {
+    console.error('Form: form prop is not properly initialized', { form, onSubmit });
+    return (
+      <div className="p-4 border border-red-200 rounded-md bg-red-50">
+        <p className="text-red-600 text-sm">Form error: Form component is not properly configured.</p>
+      </div>
+    );
+  }
+
   const debouncedBlurSubmit = useDebounceFn(() => {
-    void form.handleSubmit(onSubmit)();
+    // Additional safety check before calling handleSubmit
+    if (form && typeof form.handleSubmit === 'function') {
+      void form.handleSubmit(onSubmit)();
+    } else {
+      console.error('Form: handleSubmit is not available', { form });
+    }
   }, 500);
 
   return (
     <FormProvider {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => {
+          e.preventDefault();
+          // Safety check before calling handleSubmit
+          if (form && typeof form.handleSubmit === 'function') {
+            form.handleSubmit(onSubmit)(e);
+          } else {
+            console.error('Form: handleSubmit is not available during submit', { form });
+          }
+        }}
         onBlur={async () => {
           if (submitOnBlur) {
             debouncedBlurSubmit();

@@ -6,34 +6,36 @@ import { EmailLayout } from "./utils/email-layout";
 export default function SubscriptionDowngradeEmail({ url }: { url: string }) {
   return (
     <EmailLayout>
-      <Preview>Your Premium Access Has Been Paused</Preview>
+      <Preview>Votre accès Premium a été suspendu</Preview>
       <EmailSection>
-        <EmailText>Hello,</EmailText>
+        <EmailText>Bonjour,</EmailText>
         <EmailText>
-          We're reaching out to inform you that your account has reverted to our
-          basic access level. This change is due to the recent issues with your
-          premium subscription payment.
+          Nous vous contactons pour vous informer que votre compte est revenu à
+          notre niveau d'accès de base. Ce changement est dû aux problèmes
+          récents avec le paiement de votre abonnement premium.
         </EmailText>
         <EmailText>
-          While you'll still enjoy our core services, access to premium features
-          is now limited. We'd love to have you back in our premium community!
+          Bien que vous puissiez toujours profiter de nos services principaux,
+          l'accès aux fonctionnalités premium est maintenant limité. Nous
+          serions ravis de vous retrouver dans notre communauté premium !
         </EmailText>
         <EmailText>
-          To reactivate your premium status, simply update your payment
-          information here:
+          Pour réactiver votre statut premium, mettez simplement à jour vos
+          informations de paiement ici :
         </EmailText>
         <EmailText>
           <EmailLink href={url}>
-            👉 Click to Update Payment and Keep Using {SiteConfig.title} 👈
+            👉 Cliquez pour mettre à jour le paiement et continuer à utiliser{" "}
+            {SiteConfig.title} 👈
           </EmailLink>
         </EmailText>
         <EmailText>
-          If you have any questions or need assistance, our team is always here
-          to help.
+          Si vous avez des questions ou besoin d'assistance, notre équipe est
+          toujours là pour vous aider.
         </EmailText>
       </EmailSection>
       <Text className="text-lg leading-6">
-        Best,
+        Cordialement,
         <br />- {SiteConfig.team.name} from {SiteConfig.title}
       </Text>
     </EmailLayout>

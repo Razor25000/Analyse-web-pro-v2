@@ -34,15 +34,33 @@ export const AUTH_PLANS: AppAuthPlan[] = [
       "Perfect for individuals and small projects with essential features",
     limits: DEFAULT_LIMIT,
     price: 0,
-    currency: "USD",
+    currency: "EUR",
     yearlyPrice: 0,
+  },
+  {
+    name: "starter",
+    isPopular: false,
+    description: "Perfect for growing businesses with enhanced features",
+    priceId: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID ?? "",
+    annualDiscountPriceId: process.env.STRIPE_STARTER_YEARLY_PRICE_ID ?? "",
+    limits: {
+      projects: 10,
+      storage: 25,
+      members: 5,
+    },
+    freeTrial: {
+      days: 14,
+    },
+    price: 29,
+    yearlyPrice: 290,
+    currency: "EUR",
   },
   {
     name: "pro",
     isPopular: true,
     description: "Ideal for growing teams with advanced collaboration needs",
-    priceId: process.env.STRIPE_PRO_PLAN_ID ?? "",
-    annualDiscountPriceId: process.env.STRIPE_PRO_YEARLY_PLAN_ID ?? "",
+    priceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID ?? "",
+    annualDiscountPriceId: process.env.STRIPE_PRO_YEARLY_PRICE_ID ?? "",
     limits: {
       projects: 20,
       storage: 50,
@@ -52,16 +70,16 @@ export const AUTH_PLANS: AppAuthPlan[] = [
       days: 14,
     },
     price: 49,
-    yearlyPrice: 400,
-    currency: "USD",
+    yearlyPrice: 470,
+    currency: "EUR",
   },
   {
-    name: "ultra",
+    name: "premium",
     isPopular: false,
     description:
       "Enterprise-grade solution for large teams with complex requirements",
-    priceId: process.env.STRIPE_ULTRA_PLAN_ID ?? "",
-    annualDiscountPriceId: process.env.STRIPE_ULTRA_YEARLY_PLAN_ID ?? "",
+    priceId: process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID ?? "",
+    annualDiscountPriceId: process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID ?? "",
     limits: {
       projects: 100,
       storage: 1000,
@@ -71,8 +89,8 @@ export const AUTH_PLANS: AppAuthPlan[] = [
       days: 14,
     },
     price: 100,
-    yearlyPrice: 1000,
-    currency: "USD",
+    yearlyPrice: 960,
+    currency: "EUR",
   },
 ];
 
@@ -123,11 +141,21 @@ export const ADDITIONAL_FEATURES = {
       description: "Detailed insights and reporting",
     },
   ],
-  ultra: [
+  premium: [
     {
       icon: Zap,
       label: "Priority Support",
       description: "Get help when you need it most",
+    },
+    {
+      icon: HeadphonesIcon,
+      label: "24/7 Customer Service",
+      description: "Round-the-clock assistance",
+    },
+    {
+      icon: Clock,
+      label: "Advanced Analytics",
+      description: "Detailed insights and reporting",
     },
   ],
 };

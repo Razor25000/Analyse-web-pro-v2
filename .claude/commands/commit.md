@@ -1,9 +1,9 @@
 ---
 allowed-tools: Bash(git commit :*), Bash(git push), Bash(git add :*)
-description: Create commits following commitizen conventions with simple one-line messages.
+description: Create and push commits following commitizen conventions with concise one-line messages.
 ---
 
-1. Add all the current files into a commit
-2. Look at the diff
-3. Commit following Commitizen, keep commit simple
-4. Push
+1. Add all current files to staging
+2. Review the diff to understand changes
+3. Create a commit following Commitizen conventions with a simple message
+4. Push the commit to remote

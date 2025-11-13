@@ -1,170 +1,188 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { N8nClient } from '@/lib/n8n/client';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the environment
-vi.mock('@/lib/env', () => ({
+vi.mock("@/lib/env", () => ({
   env: {
-    N8N_BASE_URL: 'https://test-n8n.example.com',
-    N8N_WEBHOOK_SECRET: 'test-secret-key'
-  }
+    N8N_WEBHOOK_BASE_URL: "https://test-n8n.example.com",
+    N8N_SINGLE_AUDIT_PATH: "/webhook/formulaire-offre-gratuite",
+    N8N_BATCH_AUDIT_PATH: "/webhook/batch-upload",
+    N8N_WEBHOOK_SECRET: "test-secret-key",
+  },
 }));
 
-describe('N8nClient', () => {
-  let client: N8nClient;
+// Mock fetch globally
+global.fetch = vi.fn();
 
+describe("N8nClient", () => {
   beforeEach(() => {
-    client = new N8nClient();
+    vi.clearAllMocks();
+    vi.resetModules();
   });
 
-  describe('constructor', () => {
-    it('should create instance with valid environment variables', () => {
-      expect(client).toBeInstanceOf(N8nClient);
-    });
+  it("should throw error if N8N_WEBHOOK_BASE_URL is missing", async () => {
+    vi.doMock("@/lib/env", () => ({
+      env: {
+        N8N_WEBHOOK_BASE_URL: undefined,
+        N8N_SINGLE_AUDIT_PATH: "/webhook/formulaire-offre-gratuite",
+        N8N_BATCH_AUDIT_PATH: "/webhook/batch-upload",
+        N8N_WEBHOOK_SECRET: "test-secret",
+      },
+    }));
 
-    it('should throw error if N8N_BASE_URL is missing', () => {
-      vi.doMock('@/lib/env', () => ({
-        env: {
-          N8N_BASE_URL: undefined,
-          N8N_WEBHOOK_SECRET: 'test-secret'
-        }
-      }));
+    const { N8nClient: TestClient } = await import("@/lib/n8n/client");
 
-      expect(() => {
-        // Force reimport to get the mocked env
-        delete require.cache[require.resolve('@/lib/n8n/client')];
-        const { N8nClient: TestClient } = require('@/lib/n8n/client');
-        new TestClient();
-      }).toThrow('N8N_BASE_URL environment variable is required');
-    });
-
-    it('should throw error if N8N_WEBHOOK_SECRET is missing', () => {
-      vi.doMock('@/lib/env', () => ({
-        env: {
-          N8N_BASE_URL: 'https://test.com',
-          N8N_WEBHOOK_SECRET: undefined
-        }
-      }));
-
-      expect(() => {
-        // Force reimport to get the mocked env
-        delete require.cache[require.resolve('@/lib/n8n/client')];
-        const { N8nClient: TestClient } = require('@/lib/n8n/client');
-        new TestClient();
-      }).toThrow('N8N_WEBHOOK_SECRET environment variable is required');
-    });
+    expect(() => {
+      const _client = new TestClient();
+      return _client;
+    }).toThrow("N8N_WEBHOOK_BASE_URL environment variable is required");
   });
 
-  describe('triggerSingleAudit', () => {
-    it('should return simulation response for single audit', async () => {
-      const payload = {
-        url: 'https://example.com',
-        email: 'test@example.com',
-        userId: 'user-123',
-        orgSlug: 'test-org',
-        correlationId: 'corr-123'
+  it("should throw error if N8N_WEBHOOK_SECRET is missing", async () => {
+    vi.doMock("@/lib/env", () => ({
+      env: {
+        N8N_WEBHOOK_BASE_URL: "https://test-n8n.example.com",
+        N8N_SINGLE_AUDIT_PATH: "/webhook/formulaire-offre-gratuite",
+        N8N_BATCH_AUDIT_PATH: "/webhook/batch-upload",
+        N8N_WEBHOOK_SECRET: undefined,
+      },
+    }));
+
+    const { N8nClient: TestClient } = await import("@/lib/n8n/client");
+
+    expect(() => {
+      const _client = new TestClient();
+      return _client;
+    }).toThrow("N8N_WEBHOOK_SECRET environment variable is required");
+  });
+
+  describe("triggerSingleAudit", () => {
+    it("should successfully trigger a single audit", async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, message: "Audit triggered" }),
       };
+      vi.mocked(global.fetch).mockResolvedValue(mockResponse as Response);
 
-      const result = await client.triggerSingleAudit(payload);
-
-      expect(result).toEqual({
-        success: true,
-        message: 'Audit single déclenché (simulé)',
-        correlationId: 'corr-123'
-      });
-    });
-
-    it('should handle errors in triggerSingleAudit', async () => {
-      // Mock console.error to avoid output during test
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      // Create a payload that will cause JSON.parse to fail
+      const { N8nClient } = await import("@/lib/n8n/client");
       const client = new N8nClient();
-      
-      // Mock the generateSignature method to throw an error
-      vi.spyOn(client as any, 'generateSignature').mockImplementation(() => {
-        throw new Error('Test error');
+
+      const result = await client.triggerSingleAudit({
+        url: "https://example.com",
+        email: "test@example.com",
+        userId: "user-123",
+        planId: "free",
       });
 
-      const payload = {
-        url: 'https://example.com',
-        email: 'test@example.com',
-        userId: 'user-123',
-        orgSlug: 'test-org',
-        correlationId: 'corr-123'
-      };
-
-      await expect(client.triggerSingleAudit(payload)).rejects.toThrow('Test error');
-      
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Erreur trigger single audit:', expect.any(Error));
-      
-      consoleErrorSpy.mockRestore();
-    });
-  });
-
-  describe('triggerBatchAudit', () => {
-    it('should return simulation response for batch audit', async () => {
-      const payload = {
-        csvData: 'url,email\nhttps://example1.com,test1@example.com\nhttps://example2.com,test2@example.com',
-        userId: 'user-123',
-        orgSlug: 'test-org',
-        correlationId: 'batch-corr-123'
-      };
-
-      const result = await client.triggerBatchAudit(payload);
-
-      expect(result).toEqual({
-        success: true,
-        message: 'Audit batch déclenché (simulé)',
-        correlationId: 'batch-corr-123'
-      });
-    });
-
-    it('should use default batch name when not provided', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      const payload = {
-        csvData: 'url,email\nhttps://example.com,test@example.com',
-        userId: 'user-123',
-        orgSlug: 'test-org',
-        correlationId: 'batch-corr-123'
-      };
-
-      await client.triggerBatchAudit(payload);
-
-      // Check that console.log was called with payload containing default batch name
-      expect(consoleSpy).toHaveBeenCalledWith(
-        '📝 Simulation - Payload envoyé à n8n:',
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://test-n8n.example.com/webhook/formulaire-offre-gratuite",
         expect.objectContaining({
-          batch_name: expect.stringMatching(/^Batch \d{4}-\d{2}-\d{2}T/)
-        })
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "test-secret-key",
+          }),
+        }),
       );
 
-      consoleSpy.mockRestore();
+      expect(result).toEqual({
+        success: true,
+        webhookUsed:
+          "https://test-n8n.example.com/webhook/formulaire-offre-gratuite",
+      });
     });
 
-    it('should handle errors in triggerBatchAudit', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it("should handle fetch errors gracefully", async () => {
+      vi.mocked(global.fetch).mockRejectedValue(new Error("Network error"));
 
-      // Mock JSON.stringify to throw an error
-      const originalStringify = JSON.stringify;
-      vi.spyOn(JSON, 'stringify').mockImplementation(() => {
-        throw new Error('JSON stringify error');
+      const { N8nClient } = await import("@/lib/n8n/client");
+      const client = new N8nClient();
+
+      await expect(
+        client.triggerSingleAudit({
+          url: "https://example.com",
+          email: "test@example.com",
+          userId: "user-123",
+          planId: "free",
+        }),
+      ).rejects.toThrow("Network error");
+    });
+
+    it("should handle non-200 responses", async () => {
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({ error: "Server error" }),
+      };
+      vi.mocked(global.fetch).mockResolvedValue(mockResponse as Response);
+
+      const { N8nClient } = await import("@/lib/n8n/client");
+      const client = new N8nClient();
+
+      await expect(
+        client.triggerSingleAudit({
+          url: "https://example.com",
+          email: "test@example.com",
+          userId: "user-123",
+          planId: "free",
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("triggerBatchAudit", () => {
+    it("should successfully trigger a batch audit", async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, message: "Batch triggered" }),
+      };
+      vi.mocked(global.fetch).mockResolvedValue(mockResponse as Response);
+
+      const { N8nClient } = await import("@/lib/n8n/client");
+      const client = new N8nClient();
+
+      const result = await client.triggerBatchAudit({
+        csvData: "url,email\nhttps://example.com,test@example.com",
+        userId: "user-123",
+        batchName: "Test Batch",
+        correlationId: "batch-123",
+        planId: "premium",
       });
 
-      const payload = {
-        csvData: 'test',
-        userId: 'user-123',
-        orgSlug: 'test-org',
-        correlationId: 'batch-corr-123'
-      };
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://test-n8n.example.com/webhook/batch-upload",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "test-secret-key",
+          }),
+        }),
+      );
 
-      await expect(client.triggerBatchAudit(payload)).rejects.toThrow('JSON stringify error');
-      
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Erreur trigger batch audit:', expect.any(Error));
-      
-      // Restore mocks
-      JSON.stringify = originalStringify;
-      consoleErrorSpy.mockRestore();
+      expect(result).toEqual({
+        success: true,
+        webhookUsed: "https://test-n8n.example.com/webhook/batch-upload",
+      });
+    });
+
+    it("should handle fetch errors gracefully", async () => {
+      vi.mocked(global.fetch).mockRejectedValue(new Error("Network error"));
+
+      const { N8nClient } = await import("@/lib/n8n/client");
+      const client = new N8nClient();
+
+      await expect(
+        client.triggerBatchAudit({
+          csvData: "url,email\nhttps://example.com,test@example.com",
+          userId: "user-123",
+          batchName: "Test Batch",
+          correlationId: "batch-123",
+          planId: "premium",
+        }),
+      ).rejects.toThrow("Network error");
     });
   });
 });

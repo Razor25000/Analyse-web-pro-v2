@@ -1,133 +1,171 @@
-import { createHmac } from 'crypto';
-import { env } from '@/lib/env';
+// src/lib/n8n/client.ts
+import { createHmac } from "crypto";
+import { env } from "@/lib/env";
 
-export interface N8nSingleAuditPayload {
+export type N8nSingleAuditPayload = {
   url: string;
   email: string;
   userId: string;
-  orgSlug: string;
+  orgSlug?: string;
   correlationId: string;
-}
+  planId: string;
+};
 
-export interface N8nBatchAuditPayload {
-  csvData: string;
+export type AuditPayload = {
+  id: string;
+  webhookId: string;
+  url: string;
+  email: string;
   userId: string;
-  orgSlug: string;
+};
+
+export type N8nBatchAuditPayload = {
+  audits: AuditPayload[];
+  userId: string;
+  orgSlug?: string;
   batchName?: string;
   correlationId: string;
-}
+  planId: string;
+};
 
 export class N8nClient {
-  private baseUrl: string;
-  private webhookSecret: string;
+  private readonly baseUrl: string;
+  private readonly singlePath: string;
+  private readonly batchPath: string;
+  private readonly webhookSecret: string;
 
   constructor() {
-    if (!env.N8N_BASE_URL) {
-      throw new Error('N8N_BASE_URL environment variable is required');
-    }
-    if (!env.N8N_WEBHOOK_SECRET) {
-      throw new Error('N8N_WEBHOOK_SECRET environment variable is required');
-    }
-    
-    this.baseUrl = env.N8N_BASE_URL;
+    this.baseUrl = env.N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "");
+    this.singlePath = env.N8N_SINGLE_AUDIT_PATH;
+    this.batchPath = env.N8N_BATCH_AUDIT_PATH ?? "/webhook/batch-upload";
     this.webhookSecret = env.N8N_WEBHOOK_SECRET;
   }
 
-  // Générer une signature HMAC
-  private generateSignature(payload: string): string {
-    return createHmac('sha256', this.webhookSecret)
-      .update(payload, 'utf8')
-      .digest('hex');
-  }
-
-  // Déclencher un audit single (Formulaire Offre 1)
   async triggerSingleAudit(payload: N8nSingleAuditPayload) {
-    try {
-      const webhookUrl = `${this.baseUrl}/webhook/formulaire-offre-1`;
-      const body = JSON.stringify({
-        url: payload.url,
-        email: payload.email,
-        user_id: payload.userId,
-        org_slug: payload.orgSlug,
-        correlation_id: payload.correlationId,
-        delivery_method: 'dashboard',
-      });
+    const webhookUrl = `${this.baseUrl}${this.singlePath}`;
 
-      const signature = this.generateSignature(body);
+    // CORRECTION : Ajouter email_client en plus du champ email existant
+    const body = JSON.stringify({
+      website_url: payload.url,
+      url: payload.url,
+      email: payload.email, // ← Garde le champ existant
+      email_client: payload.email, // ← AJOUT pour compatibilité avec le workflow
+      user_id: payload.userId,
+      org_slug: payload.orgSlug,
+      correlation_id: payload.correlationId,
+      delivery_method: "dashboard",
+      plan_id: payload.planId,
+      source: "nowts",
+    });
 
-      console.log('🚀 Déclenchement single audit n8n:', {
-        webhookUrl,
-        correlationId: payload.correlationId
-      });
+    const signature = this.hmac(body);
 
-      // Pour l'instant, on simule l'appel
-      console.log('📝 Simulation - Payload envoyé à n8n:', JSON.parse(body));
-      
-      return {
-        success: true,
-        message: 'Audit single déclenché (simulé)',
-        correlationId: payload.correlationId
-      };
+    console.log("🚀 n8n single:", {
+      webhookUrl,
+      planId: payload.planId,
+      correlationId: payload.correlationId,
+      email: payload.email, // Pour debug
+    });
 
-      // Quand tu seras prêt, décommente ce code pour l'appel réel :
-      /*
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-N8N-Signature': `sha256=${signature}`,
-          'X-Correlation-ID': payload.correlationId,
-        },
-        body,
-      });
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-N8N-Signature": `sha256=${signature}`,
+        "X-Correlation-ID": payload.correlationId,
+      },
+      body,
+    });
 
-      if (!response.ok) {
-        throw new Error(`n8n webhook failed: ${response.statusText}`);
-      }
-
-      return await response.json();
-      */
-
-    } catch (error) {
-      console.error('Erreur trigger single audit:', error);
-      throw error;
+    const responseText = await res.text();
+    if (!res.ok) {
+      console.error(
+        `n8n webhook failed: ${res.status} ${res.statusText} – ${responseText}`,
+      );
+      throw new Error(`n8n webhook failed: ${res.status} ${res.statusText}`);
     }
+
+    let result: unknown;
+    try {
+      result = responseText.trim() ? JSON.parse(responseText) : { ok: true };
+    } catch {
+      result = { ok: true, raw: responseText };
+    }
+
+    console.log("✅ n8n single OK:", result);
+
+    return {
+      success: true,
+      correlationId: payload.correlationId,
+      n8nResponse: result,
+      webhookUsed: webhookUrl,
+    };
   }
 
-  // Déclencher un audit batch (Aiguilleur)
   async triggerBatchAudit(payload: N8nBatchAuditPayload) {
-    try {
-      const webhookUrl = `${this.baseUrl}/webhook/batch-upload`;
-      const body = JSON.stringify({
-        user_id: payload.userId,
-        csv_data: payload.csvData,
-        batch_name: payload.batchName || `Batch ${new Date().toISOString()}`,
-        org_slug: payload.orgSlug,
-        correlation_id: payload.correlationId,
-        delivery_method: 'dashboard',
-      });
+    const webhookUrl = `${this.baseUrl}${this.batchPath}`;
 
-      console.log('🚀 Déclenchement batch audit n8n:', {
-        webhookUrl,
-        correlationId: payload.correlationId,
-        csvLines: payload.csvData.split('\n').length
-      });
+    const body = JSON.stringify({
+      user_id: payload.userId,
+      audits: payload.audits,
+      batch_name: payload.batchName || `Batch ${new Date().toISOString()}`,
+      org_slug: payload.orgSlug,
+      correlation_id: payload.correlationId,
+      delivery_method: "dashboard",
+      plan_id: payload.planId,
+      source: "nowts",
+    });
 
-      // Simulation pour l'instant
-      console.log('📝 Simulation - Payload envoyé à n8n:', JSON.parse(body));
-      
-      return {
-        success: true,
-        message: 'Audit batch déclenché (simulé)',
-        correlationId: payload.correlationId
-      };
+    const signature = this.hmac(body);
 
-    } catch (error) {
-      console.error('Erreur trigger batch audit:', error);
-      throw error;
+    console.log("🚀 n8n batch:", {
+      webhookUrl,
+      planId: payload.planId,
+      correlationId: payload.correlationId,
+    });
+
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-N8N-Signature": `sha256=${signature}`,
+        "X-Correlation-ID": payload.correlationId,
+      },
+      body,
+    });
+
+    const responseText = await res.text();
+    if (!res.ok) {
+      console.error(
+        `n8n batch failed: ${res.status} ${res.statusText} – ${responseText}`,
+      );
+      throw new Error(`n8n batch failed: ${res.status} ${res.statusText}`);
     }
+
+    let result: unknown;
+    try {
+      result = responseText.trim() ? JSON.parse(responseText) : { ok: true };
+    } catch {
+      result = { ok: true, raw: responseText };
+    }
+
+    console.log("✅ n8n batch OK:", result);
+
+    return {
+      success: true,
+      correlationId: payload.correlationId,
+      n8nResponse: result,
+      webhookUsed: webhookUrl,
+    };
+  }
+
+  private hmac(payload: string): string {
+    return createHmac("sha256", this.webhookSecret)
+      .update(payload, "utf8")
+      .digest("hex");
   }
 }
 
-// Instance singleton
+// exports
 export const n8nClient = new N8nClient();
+export default n8nClient;

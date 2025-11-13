@@ -1,10 +1,18 @@
 import type { User } from "better-auth";
 import { nanoid } from "nanoid";
-import { createOrganizationQuery } from "../../query/org/org-create.query";
 import { env } from "../env";
-import { generateSlug, getNameFromEmail } from "../format/id";
+import { logger } from "../logger";
 import { resend } from "../mail/resend";
 import { prisma } from "../prisma";
+import { createClient } from "@supabase/supabase-js";
+
+/**
+ * SUPPRIMÉ: Architecture v2.0 optimisée - plus de synchronisation profiles
+ * Les données utilisateurs sont gérées uniquement dans Prisma (source de vérité)
+ * Seuls les audits sont synchronisés pour les workflows n8n
+ *
+ * @deprecated Cette fonction a été supprimée dans l'architecture v2.0
+ */
 
 export const setupResendCustomer = async (user: User) => {
   if (!user.email) {
@@ -41,22 +49,32 @@ export const setupDefaultOrganizationsOrInviteUser = async (user: User) => {
     return;
   }
 
-  const name = user.name || getNameFromEmail(user.email);
-  const orgSlug = generateSlug(name);
-  await createOrganizationQuery({
-    slug: orgSlug,
-    name: `${name}'s organization`,
-    email: user.email,
-    logo: user.image,
-    id: nanoid(),
-    createdAt: new Date(),
-    members: {
-      create: {
-        userId: user.id,
-        role: "owner",
-        id: nanoid(),
-        createdAt: new Date(),
+  // Initialiser les quotas dans la table User (UserQuota supprimée)
+  await prisma.user
+    .update({
+      where: { id: user.id },
+      data: {
+        monthlyQuota: 5, // Quota gratuit par défaut
+        quotaUsed: 0,
+        quotaResetDate: new Date(
+          new Date().setMonth(new Date().getMonth() + 1),
+        ),
       },
-    },
+    })
+    .catch((error) => {
+      logger.error("Erreur initialisation quota utilisateur", {
+        error: error.message,
+        userId: user.id,
+      });
+    });
+
+  // NOTE: Supabase profiles synchronization removed in v2.0 architecture
+  // Les données utilisateurs sont gérées uniquement dans Prisma (source de vérité)
+  // Seuls les audits sont synchronisés pour les workflows n8n
+  logger.info("✅ Setup utilisateur terminé (quotas dans Prisma)", {
+    email: user.email,
   });
+
+  // Retourner null pour redirection B2C
+  return null;
 };

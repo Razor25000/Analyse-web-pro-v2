@@ -1,0 +1,301 @@
+{
+  "workflowName": "Aiguilleur - Batch Audit Fix",
+  "description": "Ready-to-use N8N node configurations for fixing the batch audit duplicate record issue",
+  "backupInstructions": {
+    "step1": "Open N8N workflow editor at n8n.redjice.shop",
+    "step2": "Navigate to 'Aiguilleur' workflow",
+    "step3": "Click workflow settings (gear icon)",
+    "step4": "Click 'Download' to export workflow JSON",
+    "step5": "Save as 'aiguilleur-workflow-backup-YYYY-MM-DD.json'",
+    "step6": "Store backup in safe location before making any changes"
+  },
+  "nodesToRemove": [
+    {
+      "nodeName": "📝 Create Individual Prospect",
+      "nodeType": "n8n-nodes-base.supabase",
+      "operation": "INSERT",
+      "reason": "This node creates duplicate 'batch_analysis' records. We'll replace it with a query node.",
+      "removalSteps": [
+        "1. Click on the '📝 Create Individual Prospect' node",
+        "2. Note all outgoing connections before deleting",
+        "3. Right-click node and select 'Delete'",
+        "4. Confirm deletion"
+      ]
+    }
+  ],
+  "nodesToAdd": [
+    {
+      "nodeName": "🔍 Query Existing Batch Record",
+      "nodeType": "n8n-nodes-base.supabase",
+      "position": "Replace the deleted '📝 Create Individual Prospect' node position",
+      "configuration": {
+        "authentication": "serviceAccount",
+        "operation": "select",
+        "tableId": "audits",
+        "filterType": "manual",
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "field": "audit_type",
+              "operator": "equals",
+              "value": "batch"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "pending"
+            },
+            {
+              "field": "url",
+              "operator": "equals",
+              "value": "={{ $json.url }}"
+            }
+          ]
+        },
+        "returnFields": {
+          "fields": [
+            "id",
+            "webhook_id",
+            "url",
+            "status",
+            "user_id",
+            "email",
+            "created_at"
+          ]
+        },
+        "options": {
+          "limit": 1
+        }
+      },
+      "expectedOutput": {
+        "id": "uuid-here",
+        "webhook_id": "batch_abc123_1",
+        "url": "https://example.com",
+        "status": "pending",
+        "user_id": "user-id-here",
+        "email": "contact@example.com",
+        "created_at": "2025-01-15T10:30:00Z"
+      },
+      "connectionInstructions": {
+        "inputFrom": "Loop Items node (CSV parser output)",
+        "outputTo": "❓ Check Record Found node (new IF node)"
+      }
+    },
+    {
+      "nodeName": "❓ Check Record Found",
+      "nodeType": "n8n-nodes-base.if",
+      "position": "After '🔍 Query Existing Batch Record'",
+      "configuration": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $('🔍 Query Existing Batch Record').item.json.id }}",
+              "value2": "",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "connectionInstructions": {
+        "inputFrom": "🔍 Query Existing Batch Record",
+        "trueOutput": "✅ Update Status to Processing",
+        "falseOutput": "⚠️ Log Missing Record Error (optional error handler)"
+      },
+      "purpose": "Prevents errors if no matching batch record exists for a given URL"
+    },
+    {
+      "nodeName": "✅ Update Status to Processing",
+      "nodeType": "n8n-nodes-base.supabase",
+      "position": "After '❓ Check Record Found' (true branch)",
+      "configuration": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "tableId": "audits",
+        "filterType": "manual",
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "field": "id",
+              "operator": "equals",
+              "value": "={{ $('🔍 Query Existing Batch Record').item.json.id }}"
+            }
+          ]
+        },
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "status",
+              "value": "processing"
+            },
+            {
+              "column": "updated_at",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "connectionInstructions": {
+        "inputFrom": "❓ Check Record Found (true branch)",
+        "outputTo": "Préparer Contexte Worker"
+      },
+      "purpose": "Marks record as 'processing' before pushing to Redis queue to prevent race conditions"
+    },
+    {
+      "nodeName": "⚠️ Log Missing Record Error",
+      "nodeType": "n8n-nodes-base.code",
+      "position": "After '❓ Check Record Found' (false branch) - OPTIONAL",
+      "configuration": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Log error when no matching batch record is found\nconst url = $input.item.json.url;\nconst userId = $input.item.json.user_id;\n\nconsole.error('⚠️ No matching batch record found:', {\n  url,\n  userId,\n  timestamp: new Date().toISOString()\n});\n\n// Return empty to skip this item\nreturn [];"
+      },
+      "connectionInstructions": {
+        "inputFrom": "❓ Check Record Found (false branch)",
+        "outputTo": "No output - terminates this branch"
+      },
+      "purpose": "Logs errors for debugging without crashing the workflow. Optional but recommended."
+    }
+  ],
+  "nodesToModify": [
+    {
+      "nodeName": "Préparer Contexte Worker",
+      "nodeType": "n8n-nodes-base.set OR n8n-nodes-base.code",
+      "changes": {
+        "description": "Update node references from deleted INSERT node to new SELECT node",
+        "beforeCode": "{\n  recordId: $('📝 Create Individual Prospect').item.json.id,\n  url: $json.url,\n  userId: $json.user_id,\n  // ... other fields\n}",
+        "afterCode": "{\n  recordId: $('🔍 Query Existing Batch Record').item.json.id,\n  webhookId: $('🔍 Query Existing Batch Record').item.json.webhook_id,\n  url: $('🔍 Query Existing Batch Record').item.json.url,\n  userId: $('🔍 Query Existing Batch Record').item.json.user_id,\n  email: $('🔍 Query Existing Batch Record').item.json.email,\n  status: 'processing',\n  // ... other fields\n}",
+        "fieldsToVerify": [
+          "recordId - Must reference queried record ID",
+          "webhookId - Should come from queried record",
+          "url - Should come from queried record (not CSV)",
+          "userId - Should come from queried record",
+          "email - Should come from queried record"
+        ]
+      },
+      "connectionInstructions": {
+        "inputFrom": "✅ Update Status to Processing (changed from old INSERT node)",
+        "outputTo": "📤 Push to Redis Queue (unchanged)"
+      }
+    }
+  ],
+  "workflowConnectionMap": {
+    "oldFlow": [
+      "Webhook Trigger",
+      "→ Parse CSV",
+      "→ Loop Items",
+      "→ 📝 Create Individual Prospect (INSERT)",
+      "→ Préparer Contexte Worker",
+      "→ 📤 Push to Redis Queue"
+    ],
+    "newFlow": [
+      "Webhook Trigger",
+      "→ Parse CSV",
+      "→ Loop Items",
+      "→ 🔍 Query Existing Batch Record (SELECT)",
+      "→ ❓ Check Record Found (IF)",
+      "  ├─ TRUE → ✅ Update Status to Processing",
+      "  │         → Préparer Contexte Worker",
+      "  │         → 📤 Push to Redis Queue",
+      "  └─ FALSE → ⚠️ Log Missing Record Error (optional)"
+    ]
+  },
+  "implementationChecklist": [
+    "[ ] Create backup of current Aiguilleur workflow JSON",
+    "[ ] Open workflow in N8N editor",
+    "[ ] Delete '📝 Create Individual Prospect' node",
+    "[ ] Add '🔍 Query Existing Batch Record' node with configuration",
+    "[ ] Add '❓ Check Record Found' IF node",
+    "[ ] Add '✅ Update Status to Processing' node",
+    "[ ] (Optional) Add '⚠️ Log Missing Record Error' node",
+    "[ ] Update 'Préparer Contexte Worker' node references",
+    "[ ] Connect all nodes according to new flow diagram",
+    "[ ] Verify Supabase credentials are configured",
+    "[ ] Test workflow with dummy data",
+    "[ ] Activate workflow",
+    "[ ] Monitor first production batch carefully"
+  ],
+  "testingData": {
+    "singleRecordTest": {
+      "description": "Test with 1 URL to verify basic query functionality",
+      "csvInput": "url,email\nhttps://test-site-1.com,test1@example.com",
+      "expectedBehavior": [
+        "API creates 1 'batch' record in pending status",
+        "N8N queries and finds that exact record",
+        "Status updates to 'processing'",
+        "Record ID pushed to Redis queue",
+        "NO new 'batch_analysis' record created",
+        "Worker processes audit successfully",
+        "Status updates to 'completed'"
+      ]
+    },
+    "multipleRecordsTest": {
+      "description": "Test with 5 URLs to verify batch processing",
+      "csvInput": "url,email\nhttps://test-site-1.com,test1@example.com\nhttps://test-site-2.com,test2@example.com\nhttps://test-site-3.com,test3@example.com\nhttps://test-site-4.com,test4@example.com\nhttps://test-site-5.com,test5@example.com",
+      "expectedBehavior": [
+        "API creates 5 'batch' records with unique webhookIds",
+        "N8N queries and finds all 5 records",
+        "All 5 statuses update to 'processing'",
+        "All 5 IDs pushed to Redis queue",
+        "NO duplicate 'batch_analysis' records created"
+      ]
+    }
+  },
+  "troubleshooting": {
+    "noRecordFound": {
+      "symptom": "IF node always goes to FALSE branch",
+      "possibleCauses": [
+        "URL normalization mismatch between API and CSV parser",
+        "Record status already changed from 'pending' to something else",
+        "Timing issue - record not yet committed to database when query runs"
+      ],
+      "solutions": [
+        "Add logging in Query node to see what URLs are being searched",
+        "Check if URL from CSV matches exactly what API created",
+        "Verify audit_type is exactly 'batch' (not 'Batch' or 'BATCH')",
+        "Add small delay (100-200ms) before query to ensure transaction commits"
+      ]
+    },
+    "statusNotUpdating": {
+      "symptom": "Records remain in 'pending' status",
+      "possibleCauses": [
+        "Update node not executing",
+        "Wrong record ID being passed",
+        "Supabase credentials missing UPDATE permission"
+      ],
+      "solutions": [
+        "Verify Update node is connected in workflow",
+        "Check recordId expression matches queried record",
+        "Verify Supabase service key has UPDATE permission on audits table",
+        "Check N8N execution logs for UPDATE node errors"
+      ]
+    },
+    "duplicatesStillCreated": {
+      "symptom": "Still seeing 'batch_analysis' records in database",
+      "possibleCauses": [
+        "Old INSERT node not fully removed",
+        "Different workflow creating duplicates",
+        "Cached workflow version running"
+      ],
+      "solutions": [
+        "Verify '📝 Create Individual Prospect' node is deleted",
+        "Check if other workflows might be creating records",
+        "Deactivate and reactivate workflow to clear cache",
+        "Check workflow execution history to see which nodes ran"
+      ]
+    }
+  },
+  "rollbackProcedure": {
+    "steps": [
+      "1. Stop current workflow execution",
+      "2. Deactivate the modified workflow",
+      "3. Go to workflow settings",
+      "4. Click 'Import from File'",
+      "5. Select your backup JSON file",
+      "6. Verify old nodes are restored",
+      "7. Reactivate workflow",
+      "8. Run cleanup query to reset stuck records"
+    ],
+    "cleanupQuery": "UPDATE audits\nSET status = 'pending', updated_at = NOW()\nWHERE audit_type = 'batch'\n  AND status = 'processing'\n  AND updated_at < NOW() - INTERVAL '5 minutes';"
+  }
+}

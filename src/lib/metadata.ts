@@ -28,21 +28,22 @@ export const combineWithParentMetadata =
  */
 export const orgMetadata = cache(
   async (orgSlug: string): Promise<Metadata> => {
-    const org = await prisma.organization.findFirst({
+    // In B2C model, we don't have organizations. Return user-specific metadata.
+    const user = await prisma.user.findFirst({
       where: {
-        slug: orgSlug,
+        email: orgSlug, // Treat orgSlug as user email for B2C
       },
     });
 
-    if (!org) {
+    if (!user) {
       return {
-        title: "Organization not found",
+        title: "User not found",
       };
     }
 
     return {
-      title: `${org.name}`,
-      description: "Your organization dashboard",
+      title: `${user.name || user.email}'s Dashboard`,
+      description: "Your personal dashboard",
     };
   },
   ["org-metadata"],

@@ -15,16 +15,23 @@ import type { NavigationGroup } from "@/features/navigation/navigation.type";
 import { SidebarUserButton } from "@/features/sidebar/sidebar-user-button";
 import type { AuthOrganization } from "@/lib/auth/auth-type";
 import { ChevronDown } from "lucide-react";
-import { OrgsSelect } from "../../orgs/[orgSlug]/(navigation)/_navigation/orgs-select";
+// OrgsSelect supprimé pour la migration B2C
 import { getAccountNavigation } from "./account.links";
 
-export function AccountSidebar({ userOrgs }: { userOrgs: AuthOrganization[] }) {
+export function AccountSidebar({
+  userOrgs: _userOrgs,
+}: {
+  userOrgs: AuthOrganization[];
+}) {
   const links: NavigationGroup[] = getAccountNavigation();
 
   return (
     <Sidebar variant="inset">
       <SidebarHeader>
-        <OrgsSelect orgs={userOrgs} />
+        {/* OrgsSelect supprimé pour la migration B2C */}
+        <div className="text-muted-foreground px-2 py-1 text-sm font-semibold">
+          WebPerfekt
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {links.map((link) => (

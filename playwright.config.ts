@@ -1,6 +1,13 @@
 import type { PlaywrightTestConfig } from "@playwright/test";
 import { devices } from "@playwright/test";
 import { getServerUrl } from "./src/lib/server-url";
+import * as dotenv from "dotenv";
+
+// Charger les variables d'environnement de test
+dotenv.config({ path: ".env.test" });
+if (process.env.NODE_ENV === "test") {
+  dotenv.config({ path: ".env.local", override: false });
+}
 
 const SERVER_URL = process.env.PLAYWRIGHT_TEST_BASE_URL ?? getServerUrl();
 

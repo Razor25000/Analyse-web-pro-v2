@@ -9,7 +9,7 @@ faker.seed(123);
 async function main() {
   logger.info("🌱 Seeding database...");
 
-  // Create 10 users
+  // Create 10 users with UserQuota
   const userCreatePromises = Array.from({ length: 10 }, async () => {
     const email = faker.internet.email();
     return prisma.user.upsert({
@@ -24,6 +24,16 @@ async function main() {
         createdAt: faker.date.past(),
         updatedAt: faker.date.recent(),
         stripeCustomerId: faker.string.alphanumeric(10),
+        quota: {
+          create: {
+            planId: faker.helpers.arrayElement(["free", "pro", "premium"]),
+            auditsUsed: faker.number.int({ min: 0, max: 10 }),
+            auditsLimit: faker.helpers.arrayElement([5, 25, 100]),
+          },
+        },
+      },
+      include: {
+        quota: true,
       },
     });
   });
@@ -31,95 +41,64 @@ async function main() {
   const users = await Promise.all(userCreatePromises);
   users.forEach((user) => logger.info(`👤 Created user: ${user.name}`));
 
-  // Create 3 organizations
-  const memberPromises: Promise<unknown>[] = [];
-  const invitationPromises: Promise<unknown>[] = [];
-
-  // Prepare organization creation data
-  const orgData = Array.from({ length: 3 }, () => {
-    const orgName = faker.company.name();
-    const orgSlug = orgName.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    return { orgName, orgSlug };
+  // Create some audit usage logs for users
+  const auditLogPromises = users.slice(0, 5).map(async (user) => {
+    const auditCount = faker.number.int({ min: 1, max: 5 });
+    const auditPromises = Array.from({ length: auditCount }, async () =>
+      prisma.auditUsageLog.create({
+        data: {
+          userId: user.id,
+          auditType: faker.helpers.arrayElement(["single", "batch"]),
+          url: faker.internet.url(),
+          status: faker.helpers.arrayElement([
+            "processing",
+            "completed",
+            "failed",
+          ]),
+          runId: nanoid(11),
+          createdAt: faker.date.past(),
+          completedAt: faker.datatype.boolean(0.7) ? faker.date.recent() : null,
+        },
+      }),
+    );
+    return Promise.all(auditPromises);
   });
 
-  // Create all organizations first
-  const organizations = await Promise.all(
-    orgData.map(async ({ orgName, orgSlug }) =>
-      prisma.organization
-        .upsert({
-          where: { slug: orgSlug },
-          update: {},
-          create: {
-            id: nanoid(11),
-            name: orgName,
-            slug: orgSlug,
-            logo: faker.image.url(),
-            email: faker.internet.email(),
-            createdAt: faker.date.past(),
-          },
-        })
-        .then((org) => {
-          logger.info(`🏢 Created organization: ${org.name}`);
-          return org;
-        }),
-    ),
+  await Promise.all(auditLogPromises);
+
+  // Create some subscriptions
+  const subscriptionPromises = users.slice(0, 3).map(async (user) =>
+    prisma.subscription.create({
+      data: {
+        id: nanoid(11),
+        plan: faker.helpers.arrayElement(["pro", "premium"]),
+        referenceId: nanoid(11),
+        stripeCustomerId: user.stripeCustomerId,
+        stripeSubscriptionId: `sub_${faker.string.alphanumeric(14)}`,
+        status: faker.helpers.arrayElement(["active", "canceled", "past_due"]),
+        periodStart: faker.date.past(),
+        periodEnd: faker.date.future(),
+        cancelAtPeriodEnd: faker.datatype.boolean(0.2),
+        seats: faker.number.int({ min: 1, max: 5 }),
+      },
+    }),
   );
 
-  // Process members and invitations for each organization
-  organizations.forEach((organization) => {
-    const roleOptions = ["owner", "admin", "member"];
+  await Promise.all(subscriptionPromises);
 
-    // Make sure each org has at least one owner
-    memberPromises.push(
-      prisma.member
-        .create({
-          data: {
-            id: nanoid(11),
-            organizationId: organization.id,
-            userId: users[0].id, // First user is always an owner
-            role: "owner",
-            createdAt: faker.date.past(),
-          },
-        })
-        .then(() =>
-          logger.info(
-            `👑 Added ${users[0].name} as OWNER to ${organization.name}`,
-          ),
-        ),
-    );
+  // Create some feedback
+  const feedbackPromises = users.slice(0, 4).map(async (user) =>
+    prisma.feedback.create({
+      data: {
+        review: faker.number.int({ min: 1, max: 5 }),
+        message: faker.lorem.paragraph(),
+        email: faker.datatype.boolean(0.5) ? faker.internet.email() : null,
+        userId: user.id,
+      },
+    }),
+  );
 
-    // Add 2-4 more random members to each org
-    const memberCount = faker.number.int({ min: 2, max: 4 });
-    const memberIndices = faker.helpers.uniqueArray(
-      () => faker.number.int({ min: 1, max: users.length - 1 }),
-      memberCount,
-    );
-
-    for (const index of memberIndices) {
-      const user = users[index];
-      const role = faker.helpers.arrayElement(roleOptions);
-
-      memberPromises.push(
-        prisma.member
-          .create({
-            data: {
-              id: nanoid(11),
-              organizationId: organization.id,
-              userId: user.id,
-              role,
-              createdAt: faker.date.past(),
-            },
-          })
-          .then(() =>
-            logger.info(
-              `👥 Added ${user.name} as ${role} to ${organization.name}`,
-            ),
-          ),
-      );
-    }
-  });
-
-  await Promise.all([...memberPromises, ...invitationPromises]);
+  await Promise.all(feedbackPromises);
 
   logger.info("✅ Seeding completed!");
 }

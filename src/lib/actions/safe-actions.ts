@@ -52,7 +52,7 @@ export const orgAction = createSafeActionClient({
   },
 }).use(async ({ next, metadata = {} }) => {
   try {
-    const org = await getRequiredCurrentOrg(metadata);
+    const org = await getRequiredCurrentOrg();
     return next({
       ctx: { org },
     });

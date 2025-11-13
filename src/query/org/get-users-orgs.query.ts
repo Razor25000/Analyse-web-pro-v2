@@ -1,10 +1,6 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-
+// Migration B2C: plus besoin d'organisations utilisateur
+// Retourne un tableau vide pour maintenir la compatibilité
 export async function getUsersOrgs() {
-  const userOrganizations = await auth.api.listOrganizations({
-    headers: await headers(),
-  });
-
-  return userOrganizations;
+  // En mode B2C, l'utilisateur n'a pas d'organisations
+  return [];
 }

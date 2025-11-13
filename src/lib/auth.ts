@@ -2,8 +2,7 @@ import { stripe as stripePlugin } from "@better-auth/stripe";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
-import { magicLink, organization } from "better-auth/plugins";
-import { ac, roles } from "./auth/auth-permissions";
+import { magicLink } from "better-auth/plugins";
 
 import { sendEmail } from "@/lib/mail/send-email";
 import { SiteConfig } from "@/site-config";
@@ -43,6 +42,7 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   baseURL: getServerUrl(),
+  trustedOrigins: ["http://localhost:3000", "http://127.0.0.1:3000"],
   databaseHooks: {
     user: {
       create: {
@@ -136,29 +136,6 @@ export const auth = betterAuth({
   },
   socialProviders: SocialProviders,
   plugins: [
-    organization({
-      ac: ac,
-      roles: roles,
-      organizationLimit: 5,
-      membershipLimit: 10,
-      async sendInvitationEmail({ id, email }) {
-        const inviteLink = `${getServerUrl()}/orgs/accept-invitation/${id}`;
-        await sendEmail({
-          to: email,
-          subject: "You are invited to join an organization",
-          html: MarkdownEmail({
-            preview: `Join an organization on ${SiteConfig.title}`,
-            markdown: `
-            Hello,
-
-            You have been invited to join an organization on ${SiteConfig.title}.
-
-            [Click here to accept the invitation](${inviteLink})
-            `,
-          }),
-        });
-      },
-    }),
     stripePlugin({
       stripeClient: stripe,
       stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? "",
@@ -189,15 +166,9 @@ export const auth = betterAuth({
             },
           });
         },
-        authorizeReference: async ({ user, referenceId }) => {
-          const member = await prisma.member.findFirst({
-            where: {
-              userId: user.id,
-              organizationId: referenceId,
-            },
-          });
-
-          return member?.role === "owner" || member?.role === "admin";
+        // B2C: l'utilisateur a accès à ses propres ressources uniquement
+        authorizeReference: async ({ user }) => {
+          return true; // Dans B2C, l'utilisateur gère ses propres abonnements
         },
         enabled: true,
         plans: AUTH_PLANS,

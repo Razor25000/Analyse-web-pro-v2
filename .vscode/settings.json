@@ -7,5 +7,6 @@
     ["twc\\.[^`]+\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
     ["twc\\([^`]*?\\).*?\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
   ],
-  "cSpell.words": ["uploadthing", "utapi", "zustand"]
+  "cSpell.words": ["uploadthing", "utapi", "zustand"],
+  "postman.settings.dotenv-detection-notification-visibility": false
 }

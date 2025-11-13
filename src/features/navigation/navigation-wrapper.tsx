@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import type { ReactNode } from "react";
 import { ThemeToggle } from "../theme/theme-toggle";
 
-export async function NavigationWrapper({
+export function NavigationWrapper({
   children,
   logoChildren,
   navigationChildren,

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { LoadingButton } from "../form/submit-button";
 import { handleDialogAction, useDialogStore } from "./dialog-store";
+import { DialogContextWrapper } from "./dialog-context-wrapper";
 import type { Dialog } from "./dialog-types";
 
 export function DialogComponent(props: { dialog: Dialog }) {
@@ -29,7 +30,21 @@ export function DialogComponent(props: { dialog: Dialog }) {
   if (dialog.type === "custom") {
     return (
       <AlertDialog open={true}>
-        <AlertDialogContent>{dialog.children}</AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{dialog.title ?? "Dialogue"}</AlertDialogTitle>
+            {typeof dialog.description === "string" ? (
+              <AlertDialogDescription>
+                {dialog.description}
+              </AlertDialogDescription>
+            ) : (
+              dialog.description
+            )}
+          </AlertDialogHeader>
+          <DialogContextWrapper>
+            {dialog.children}
+          </DialogContextWrapper>
+        </AlertDialogContent>
       </AlertDialog>
     );
   }
@@ -66,7 +81,7 @@ export function DialogComponent(props: { dialog: Dialog }) {
               <dialog.icon className="size-6" />
             </div>
           )}
-          <AlertDialogTitle>{dialog.title ?? ""}</AlertDialogTitle>
+          <AlertDialogTitle>{dialog.title ?? "Dialogue"}</AlertDialogTitle>
           {typeof dialog.description === "string" ? (
             <AlertDialogDescription>
               {dialog.description}

@@ -1,9 +1,15 @@
 import type { stripe as stripePlugin } from "@better-auth/stripe";
 import type { auth } from "../auth";
 
-export type AuthOrganization = Awaited<
-  ReturnType<typeof auth.api.listOrganizations>
->[number];
+// Note: Organizations are not implemented in current B2C model
+// This type is kept for future compatibility
+export type AuthOrganization = {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 type StripePluginSubscriptions = Parameters<
   typeof stripePlugin

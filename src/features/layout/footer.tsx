@@ -54,7 +54,7 @@ export const Footer = () => {
               as={Link}
               variant="muted"
               className="hover:underline"
-              href="/orgs"
+              href="/dashboard/audits"
             >
               Dashboard
             </Typography>

@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id               String         @id
+  name             String
+  email            String         @unique
+  emailVerified    Boolean
+  image            String?
+  createdAt        DateTime
+  updatedAt        DateTime
+  resendContactId  String?
+  stripeCustomerId String?
+  monthlyQuota     Int            @default(10) @map("monthly_quota")
+  quotaUsed        Int            @default(0) @map("quota_used")
+  quotaResetDate   DateTime       @default(now()) @map("quota_reset_date")
+  company          String?
+  subscriptionTier String?        @default("free") @map("subscription_tier")
+  accounts         Account[]
+  auditsCreated    Audit[]        @relation("UserAudits")
+  feedbacks        Feedback[]
+  sessions         Session[]
+  subscriptions    Subscription[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+model PreRegistration {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String
+  password        String
+  selectedPlan    String
+  stripeSessionId String?
+  status          String   @default("pending")
+  expiresAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([email])
+  @@index([stripeSessionId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("pre_registration")
+}
+
+model Subscription {
+  id                   String    @id
+  plan                 String
+  referenceId          String
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  status               String?
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  cancelAtPeriodEnd    Boolean?
+  seats                Int?
+  userId               String?   @map("user_id")
+  user                 User?     @relation(fields: [userId], references: [id])
+
+  @@map("subscription")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  review    Int
+  message   String
+  email     String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@map("feedback")
+}
+
+model Audit {
+  id               String    @id @default(dbgenerated("gen_random_uuid()"))
+  userId           String?   @map("user_id")
+  email            String?
+  url              String
+  status           String    @default("pending")
+  auditType        String    @default("manual") @map("audit_type")
+  resultsJson      Json?     @map("results_json")
+  scoreGlobal      Int?      @map("score_global")
+  scorePerformance Int?      @map("score_performance")
+  scoreSeo         Int?      @map("score_seo")
+  scoreSecurity    Int?      @map("score_security")
+  scoreModern      Int?      @map("score_modern")
+  errorMessage     String?   @map("error_message")
+  webhookId        String?   @map("webhook_id")
+  isPublic         Boolean   @default(false) @map("is_public")
+  auditResults     String?   @map("audit_results")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
+  orgId            String?   @map("org_id")
+  runId            String?   @map("runId")
+  htmlReport       String?   @map("html_report")
+  platformDetected String?   @map("platform_detected")
+  deliveryMethod   String?   @map("delivery_method")
+  emailClient      String?   @map("email_client")
+  user             User?     @relation("UserAudits", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([webhookId])
+  @@index([orgId])
+  @@index([runId])
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+  @@map("audits")
+}
+
+enum SubscriptionTier {
+  free
+  basic
+  premium
+  enterprise
+}

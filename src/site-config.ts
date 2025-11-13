@@ -1,9 +1,9 @@
 export const SiteConfig = {
-  title: "Analyseur web pro",
-  description: "Analysez votre site web pour améliorer votre référencement",
-  prodUrl: "https://demo.nowts.app",
-  appId: "nowts",
-  domain: "demo.nowts.app",
+  title: "WebPerfekt",
+  description: "Analysez et optimisez votre site web avec WebPerfekt, nos audits experts en performance, SEO et sécurité. Essai gratuit pour les pros.",
+  prodUrl: "https://www.webperfekt.fr",
+  appId: "webperfekt",
+  domain: "www.webperfekt.fr",
   appIcon: "/images/icon.png",
   company: {
     name: "InnovWebDesign",
@@ -24,11 +24,11 @@ export const SiteConfig = {
      * Or you can use Cloudflare R2 : https://mlv.sh/cloudflare-r2-tutorial
      * Or you can use AWS S3 : https://mlv.sh/aws-s3-tutorial
      */
-    enableImageUpload: false as boolean,
+    enableImageUpload: true as boolean,
     /**
-     * If enable, the user will be redirected to `/orgs` when he visits the landing page at `/`
+     * If enable, the user will be redirected to `/` when he visits the landing page at `/`
      * The logic is located in middleware.ts
      */
-    enableLandingRedirection: true as boolean,
+    enableLandingRedirection: false as boolean,
   },
 };

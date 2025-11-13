@@ -85,79 +85,16 @@ export type Database = {
           updated_at?: string;
         };
       };
-      profiles: {
-        Row: {
-          id: string; // uuid
-          user_id: string; // uuid
-          email: string;
-          full_name: string | null;
-          company: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          email: string;
-          full_name?: string | null;
-          company?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          email?: string;
-          full_name?: string | null;
-          company?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      subscribers: {
-        Row: {
-          id: string; // uuid
-          user_id: string | null; // uuid
-          email: string;
-          stripe_customer_id: string | null;
-          subscribed: boolean;
-          subscription_tier: string | null; // subscription_tier enum
-          subscription_end: string | null;
-          monthly_quota: number | null;
-          quota_used: number | null;
-          quota_reset_date: string | null; // date
-          updated_at: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id?: string | null;
-          email: string;
-          stripe_customer_id?: string | null;
-          subscribed?: boolean;
-          subscription_tier?: string | null;
-          subscription_end?: string | null;
-          monthly_quota?: number | null;
-          quota_used?: number | null;
-          quota_reset_date?: string | null;
-          updated_at?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          user_id?: string | null;
-          email?: string;
-          stripe_customer_id?: string | null;
-          subscribed?: boolean;
-          subscription_tier?: string | null;
-          subscription_end?: string | null;
-          monthly_quota?: number | null;
-          quota_used?: number | null;
-          quota_reset_date?: string | null;
-          updated_at?: string;
-          created_at?: string;
-        };
-      };
+      /**
+       * SUPPRIMÉ: Architecture v2.0 optimisée - plus de table profiles
+       * Les données utilisateurs sont gérées uniquement dans Prisma (source de vérité)
+       * Seuls les audits sont synchronisés pour les workflows n8n
+       *
+       * @deprecated La table profiles a été supprimée dans l'architecture v2.0
+       */
+      // ARCHITECTURE DUAL OPTIMISÉE v2.0:
+      // - Supabase: table 'audits' pour workflows n8n
+      // - Prisma: users, quotas, subscriptions (source de vérité)
     };
     Views: {
       // Define your database views here

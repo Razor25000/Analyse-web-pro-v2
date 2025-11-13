@@ -1,268 +1,207 @@
-# Claude.md — Guide pour Claude Code (📦 projet: <anaylseur web>)
+# CLAUDE.md
 
-> But: permettre à Claude Code (claude.ai/code) d’intervenir efficacement sur ce repo **sans contexte superflu**, avec sorties en **diffs appliquables**, **tests**, et **docs à jour**.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
----
+## About the project <ANALYSEUR-WEB-PRO>
 
-## 1) Aperçu Projet (à compléter rapidement)
+If you read this, ask question about the project to fill this part. You need to describe what is the purpose of the project, main feature and goals.
 
-Si des infos manquent, pose-moi exactement 3 questions ciblées pour compléter :
+## Development Commands
 
-- **Objectif produit** : …
-- **Fonctions clés** : …
-- **Public cible / plans** : …
+### Core Commands
 
----
+- `pnpm dev` - Start development server with Turbopack (clears sessions first)
+- `pnpm dev:clean` - Same as dev, explicitly clears sessions first
+- `pnpm dev:keep-session` - Start dev server without clearing sessions
+- `pnpm build` - Build the application
+- `pnpm start` - Start production server
+- `pnpm ts` - Run TypeScript type checking
+- `pnpm lint` - Run ESLint with auto-fix
+- `pnpm lint:ci` - Run ESLint without auto-fix for CI
+- `pnpm clean` - Run lint, type check, and format code
+- `pnpm format` - Format code with Prettier
 
-## 2) Stack & Contraintes
+### Testing Commands
 
-- **Framework**: Next.js **15** (App Router) • **TypeScript strict**
-- **UI**: Tailwind CSS v4 • shadcn/ui
-- **Auth**: Better Auth (multi-organisation, rôles)
-- **Billing**: Stripe (abos/quotas)
-- **DB**: PostgreSQL + Prisma (auth/billing) • Supabase (domaine métier) _(si utilisé ici)_
-- **Email**: React Email + Resend
-- **Tests**: Vitest (unit) • Playwright (e2e)
-- **Queue**: Redis _(si workflows async)_
-- **Workflows**: n8n (webhooks HMAC, sync<5s / async≥5s)
-- **Contraintes**: responsive, idempotence, rate-limit, logs corrélés (runId), zéro secret en clair
+- `pnpm test:ci` - Run unit tests in CI mode
+- `pnpm test:e2e:ci` - Run e2e tests in CI mode (headless)
 
----
+### Database Commands
 
-## 3) Conventions d’IO pour Claude Code
+- `pnpm prisma:seed` - Seed the database
+- `pnpm better-auth:migrate` - Generate better-auth Prisma schema
 
-Toujours produire des **fichiers** et **diffs unifiés**:
+### Development Tools
 
-```txt
-path: <chemin/vers/fichier.ext>
-<contenu complet du fichier>
+- `pnpm email` - Email development server
+- `pnpm stripe-webhooks` - Listen for Stripe webhooks
+- `pnpm knip` - Run knip for unused code detection
 
-diff
---- a/<chemin/ancien>
-+++ b/<chemin/nouveau>
-@@
-<patch>
-```
+## Architecture Overview
 
-**Exigé pour chaque tâche de code** :
+### Technology Stack
 
-1. Fichiers modifiés/créés ✅
-2. **Tests** (unit/integration/e2e selon le scope) ✅
-3. **Mise à jour docs** (README concerné / Claude.md si specs changent) ✅
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript (strict mode)
+- **Styling**: TailwindCSS v4 with Shadcn/UI components
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: Better Auth with organization support
+- **Email**: React Email with Resend
+- **Payments**: Stripe integration
+- **Testing**: Vitest for unit tests, Playwright for e2e
+- **Package Manager**: pnpm
 
-Interdits : commandes shell réelles, secrets, tokens, clés `service_role`.
+### Project Structure
 
----
+- `app/` - Next.js App Router pages and layouts
+- `src/components/` - UI components (Shadcn/UI in `ui/`, custom in `nowts/`)
+- `src/features/` - Feature-specific components and logic
+- `src/lib/` - Utilities, configurations, and services
+- `src/hooks/` - Custom React hooks
+- `emails/` - Email templates using React Email
+- `prisma/` - Database schema and migrations
+- `e2e/` - End-to-end tests
+- `__tests__/` - Unit tests
 
-## 4) Points chauds du repo (où regarder/écrire)
+### Key Features
 
-- `app/` : pages & routes (App Router)
-- `src/components/` : UI (shadcn/ui dans `ui/`, customs dans `nowts/`)
-- `src/features/` : logique par feature
-- `src/lib/` : configs, services, clients API
-- `src/hooks/` : hooks React
-- `emails/` : templates React Email
-- `prisma/` : `schema.prisma`, migrations, seed
-- `__tests__/` : unit
-- `e2e/` : e2e (Playwright)
+- **Multi-tenant Organizations**: Full organization management with roles and permissions
+- **Authentication**: Email/password, magic links, OAuth (GitHub, Google)
+- **Billing**: Stripe subscriptions with plan management
+- **Dialog System**: Global dialog manager for modals and confirmations
+- **Forms**: React Hook Form with Zod validation and server actions
+- **Email System**: Transactional emails with React Email
 
----
+## Code Conventions
 
-## 5) Intégration n8n & Supabase — _Context packs_
+### TypeScript
 
-Quand tu touches un workflow, charge **uniquement** son pack minimal :
+- Use `type` over `interface` (enforced by ESLint)
+- Prefer functional components with TypeScript types
+- No enums - use maps instead
+- Strict TypeScript configuration
 
-```
-/workflows/<slug>/
-  workflow.json            # export n8n SANITISÉ (aucun credential)
-  input.schema.json        # schéma d’entrée (Zod/JSON Schema)
-  output.schema.json       # schéma de sortie
-  README.md                # Trigger, I/O, SLA (sync/async), erreurs
-/workflows/index.yml       # mapping → routes API, SLA, webhooks
-```
+### React/Next.js
 
-Accès BD métier via **Supabase** (si présent) :
+- Prefer React Server Components over client components
+- Use `"use client"` only for Web API access in small components
+- Wrap client components in `Suspense` with fallback
+- Use dynamic loading for non-critical components
 
-```
-/supabase/migrations/*.sql  # schéma
-/supabase/rls/*.sql         # policies RLS + tests
-/docs/erd.md                # diagramme tables
-```
+### Styling
 
-**Garde-fous** : jamais de headers `Authorization`/API keys dans `workflow.json`. Remplacer par `PLACEHOLDER_*`.
+- Mobile-first approach with TailwindCSS
+- Use Shadcn/UI components from `src/components/ui/`
+- Custom components in `src/components/nowts/`
 
----
+### Styling preferences
 
-## 6) Contrats API & Sécurité (exemple)
+- Use the shared typography components in `@src/components/ui/typography.tsx` for paragraphs and headings (instead of creating custom `p`, `h1`, `h2`, etc.).
+- For spacing, prefer utility layouts like `flex flex-col gap-4` for vertical spacing and `flex gap-4` for horizontal spacing (instead of `space-y-4`).
+- Prefer the card container `@src/components/ui/card.tsx` for styled wrappers rather than adding custom styles directly to `<div>` elements.
 
-**Routes type** :
+### State Management
 
-```
-POST /api/orgs/[orgSlug]/audits/single
-POST /api/orgs/[orgSlug]/audits/batch
-GET  /api/orgs/[orgSlug]/audits/status        # nouveauté Phase 4
-GET  /api/orgs/[orgSlug]/audits/status/[runId]
-POST /api/orgs/[orgSlug]/audits/webhook/n8n  # callbacks
-```
+- Use `nuqs` for URL search parameter state
+- Zustand for global state (see dialog-store.ts)
+- TanStack Query for server state
 
-**Validation** : Zod côté server.
+### Forms and Server Actions
 
-```ts
-export const SingleAuditSchema = z.object({
-  url: z.string().url(),
-  email: z.string().email(),
-  deliveryMethod: z.enum(["email", "dashboard"]),
-});
+- Use React Hook Form with Zod validation
+- Server actions in `.action.ts` files
+- Use `resolveActionResult` helper for mutations
+- Follow form creation pattern in `/src/features/form/`
 
-export const BatchAuditSchema = z.object({
-  csvData: z.string().min(10, 'CSV trop court'),
-  batchName: z.string().optional(),
-});
-```
+### Authentication
 
-**API Status (Phase 4)** : Récupération du statut des audits d'une organisation.
+- Use `getUser()` for optional user (server-side)
+- Use `getRequiredUser()` for required user (server-side)
+- Use `useSession()` from auth-client.ts (client-side)
+- Use `getCurrentOrgCache()` to get the current org
 
-```ts
-// GET /api/orgs/[orgSlug]/audits/status
-// Réponse format:
-{
-  success: true,
-  audits: FormattedAudit[],  // Liste des audits formatés
-  stats: AuditStats,         // Statistiques agrégées
-  quota: QuotaInfo,          // Informations quota
-  organization: OrgInfo,     // Infos organisation
-  meta: MetaInfo            // Métadonnées
-}
-```
+### Database
 
-**HMAC pour webhooks** :
+- Prisma ORM with PostgreSQL
+- Database hooks for user creation setup
+- Organization-based data access patterns
 
-```ts
-import { createHmac, timingSafeEqual } from "crypto";
-export function isValidHMAC(payload: string, signature: string) {
-  const h = createHmac("sha256", process.env.N8N_WEBHOOK_SECRET!)
-    .update(payload)
-    .digest("hex");
-  return timingSafeEqual(Buffer.from(signature), Buffer.from(h));
-}
-```
+### Dialog System
 
-**Idempotence** : header `Idempotency-Key` + store (clé = userId+route+hash(payload)).
+- Use `dialogManager` for global modals
+- Types: confirm, input, custom dialogs
+- Automatic loading states and error handling
 
----
+## Testing
 
-## 7) Auth, Billing & Quotas (exigences)
+### Unit Tests
 
-- Better-Auth : helpers `getUser()`/`getRequiredUser()`, organisations, rôles.
-- Stripe : produits/plans, webhooks `invoice.paid`/`customer.subscription.updated`.
-- Quotas : middleware server (bloque si limite atteinte), compteur mensuel par org.
-- UI : afficher quota restant, erreurs “quota_exceeded”, retries guidés.
+- Located in `__tests__/` directory
+- Use Vitest with React Testing Library
+- Mock extended with `vitest-mock-extended`
 
----
+### E2E Tests
 
-## 8) UX & États (shadcn/ui)
+- Located in `e2e/` directory
+- Use Playwright with custom test utilities
+- Helper functions in `e2e/utils/`
 
-États standard pour toute feature :
+## Important Files
 
-- `idle` | `loading` | `success` | `error` | `quota_exceeded`
-- Async : barre de progression + ETA, suivi par `runId`, mise à jour par polling (2s) ou WebSocket/SSE.
+- `src/lib/auth.ts` - Authentication configuration
+- `src/features/dialog-manager/` - Global dialog system
+- `src/lib/actions/actions-utils.ts` - Server action utilities
+- `src/components/ui/form.tsx` - Form components
+- `prisma/schema.prisma` - Database schema
+- `src/site-config.ts` - Site configuration
+- `src/lib/actions/safe-actions.ts` - All Server Action SHOULD use this logic
+- `src/lib/zod-route.ts` - All Next.js route (inside the folder `/app/api` and name `route.ts`) SHOULD use this logic
 
----
+## Development Notes
 
-## 9) Commandes Dév (pnpm)
+- Always use `pnpm` for package management
+- Use TypeScript strict mode - no `any` types
+- Prefer server components and avoid unnecessary client-side state
+- Prefer using `??` than `||`
+- All API Route SHOULD use @src/lib/zod-route.ts, each file name `route.ts` should use Zod Route. ALWAYS READ zod-route.ts before creating any routes.
+- All API Request SHOULD use @src/lib/up-fetch.ts and NEVER use `fetch`
 
-**Core**
+## Files naming
 
-- `pnpm dev` • `pnpm build` • `pnpm start`
-- `pnpm ts` (type-check) • `pnpm lint` • `pnpm lint:ci`
-- `pnpm clean` • `pnpm format`
+- All server actions should be suffix by `.action.ts` eg. `user.action.ts`, `dashboard.action.ts`
 
-**Tests**
+## Debugging and complexe tasks
 
-- `pnpm test:ci` (unit) • `pnpm test:e2e:ci` (e2e)
+- For complexe logic and debugging, use logs. Add a lot of logs at each steps and ASK ME TO SEND YOU the logs so you can debugs easily.
 
-**DB / Auth**
+## TypeScript imports
 
-- `pnpm prisma:seed` • `pnpm better-auth:migrate`
+Important, when you import thing try to always use TypeScript paths :
 
-**Outils**
+- `@/*` is link to @src
+- `@email/*` is link to @emails
+- `@app/*` is link to @app
 
-- `pnpm email` • `pnpm stripe-webhooks` • `pnpm knip`
+## Workflow modification
 
-_(ajoute tes scripts custom si besoin)_
+🚨 **CRITICAL RULE - ALWAYS FOLLOW THIS** 🚨
 
----
+**BEFORE editing any files, you MUST Read at least 3 files** that will help you to understand how to make a coherent and consistency.
 
-## 10) Règles & Checklist avant code
+This is **NON-NEGOTIABLE**. Do not skip this step under any circumstances. Reading existing files ensures:
 
-**Toujours** vérifier avant un CCODE.\* :
+- Code consistency with project patterns
+- Proper understanding of conventions
+- Following established architecture
+- Avoiding breaking changes
 
-- [ ] Trigger, Inputs, Outputs, Durée (sync/async) clairs
-- [ ] Schémas I/O (Zod) alignés avec `workflow.json` (n8n)
-- [ ] Auth/Idempotence/HMAC/Rate-limit traités
-- [ ] Tables & RLS Supabase (si concerné) précisées
-- [ ] Cas d’erreurs + messages UX définis
-- [ ] Variables d’env présentes dans `.env.example`
+**Types of files you MUST read:**
 
-**Sécurité**
+1. **Similar files**: Read files that do similar functionality to understand patterns and conventions
+2. **Imported dependencies**: Read the definition/implementation of any imports you're not 100% sure how to use correctly - understand their API, types, and usage patterns
 
-- ❌ Pas de secrets, tokens, `service_role` ou credentials dans le code/JSON
-- ❌ Pas de commandes shell exécutées
-- ✅ Placeholder uniquement + doc mise à jour
+**Steps to follow:**
 
----
-
-## 11) Tests & Observabilité (minimum)
-
-- **Unit** : logique (schémas, quotas, mappers)
-- **Intégration** : routes API ↔ n8n (mocks), Prisma
-- **E2E** : parcours clé (single, batch, affichage rapport)
-- **Logs** : structurés (JSON), corrélation par `runId`
-- **Métriques** : temps d’exécution, taux d’échec, quotas
-
----
-
-## 12) Variables d’Environnement (placeholders)
-
-```bash
-# n8n
-N8N_BASE_URL=<https://n8n.example.com>
-N8N_WEBHOOK_SECRET=<REQUIRED>
-
-# Supabase (si utilisé côté serveur uniquement)
-SUPABASE_URL=<...>
-SUPABASE_ANON_KEY=<...>
-SUPABASE_SERVICE_KEY=<SERVER_ONLY>
-
-# Stripe
-STRIPE_SECRET_KEY=<...>
-STRIPE_WEBHOOK_SECRET=<...>
-
-# Redis (si file d’attente)
-REDIS_URL=<redis://...>
-```
-
----
-
-## 13) Tâches types pour Claude Code
-
-- **Implémenter une route audit**
-  1. Créer handler Next.js + schémas Zod
-  2. Appel n8n (HMAC + idempotence)
-  3. Tests unit + intégration (mocks n8n)
-  4. Doc (README workflow + cette section si specs changent)
-
-- **Brancher un workflow n8n async**
-  1. Endpoint POST + création `runId`
-  2. Polling/WebSocket pour suivi
-  3. Webhook callback + MAJ statut
-  4. UI états + tests e2e
-
-_(Toujours livrer en fichiers + diff + tests + docs.)_
-
-```
-
----
-
-Si tu préfères passer par **Claude Code**, dis-le et je te fournis la **version “path: Claude.md”** (même contenu, prêt pour un coller-coller direct dans l’outil).
-```
+1. Read at least 3 relevant existing files (similar functionality + imported dependencies)
+2. Understand the patterns, conventions, and API usage
+3. Only then proceed with creating/editing files

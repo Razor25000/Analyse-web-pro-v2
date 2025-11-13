@@ -49,4 +49,4 @@ async function testEnv() {
   }
 }
 
-await testEnv();
+testEnv().catch(console.error);

@@ -47,9 +47,9 @@ const BaseSidebar = () => {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButtonLink href="/orgs">
+            <SidebarMenuButtonLink href="/dashboard/audits">
               <Building2 />
-              <span>Organization</span>
+              <span>Dashboard</span>
             </SidebarMenuButtonLink>
           </SidebarMenuItem>
           <SidebarMenuItem>

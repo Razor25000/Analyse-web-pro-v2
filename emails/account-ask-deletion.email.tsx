@@ -13,26 +13,27 @@ export default function AccountAskDeletionEmail({
   return (
     <EmailLayout>
       <Preview>
-        Action required: You need to confirm your account deletion.
+        Action requise : Vous devez confirmer la suppression de votre compte.
       </Preview>
       <EmailSection>
-        <EmailText>Hi,</EmailText>
+        <EmailText>Bonjour,</EmailText>
         <EmailText>
-          You have requested the deletion of your account. The deletion is not
-          yet effective. Please confirm your request by clicking the link below:
+          Vous avez demandé la suppression de votre compte. La suppression n'est
+          pas encore effective. Veuillez confirmer votre demande en cliquant sur
+          le lien ci-dessous :
         </EmailText>
         <EmailText>
           <EmailLink href={confirmUrl}>
-            👉 Confirm Account Deletion 👈
+            👉 Confirmer la suppression du compte 👈
           </EmailLink>
         </EmailText>
         <EmailText>
-          You have 1 hour to confirm your request. After, the request will be
-          invalid.
+          Vous avez 1 heure pour confirmer votre demande. Après, la demande sera
+          invalide.
         </EmailText>
-        {organizationsToDelete.length > 0 && (
+        {organizationsToDelete && organizationsToDelete.length > 0 && (
           <EmailText>
-            The following organizations will also be deleted:
+            Les organisations suivantes seront également supprimées :
             <ul>
               {organizationsToDelete.map((org) => (
                 <li key={org}>{org}</li>
@@ -42,7 +43,7 @@ export default function AccountAskDeletionEmail({
         )}
       </EmailSection>
       <Text className="text-lg leading-6">
-        Best,
+        Cordialement,
         <br />- {SiteConfig.team.name} from {SiteConfig.title}
       </Text>
     </EmailLayout>

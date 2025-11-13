@@ -1,4 +1,3 @@
-/* eslint-disable linebreak-style */
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" }); // charge .env.local s’il existe
 dotenv.config(); // puis .env

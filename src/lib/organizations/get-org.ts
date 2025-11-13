@@ -1,94 +1,89 @@
 import { headers } from "next/headers";
 import { unauthorized } from "next/navigation";
 import { auth } from "../auth";
-import type { AuthPermission, AuthRole } from "../auth/auth-permissions";
 import { getSession } from "../auth/auth-user";
-import { isInRoles } from "./is-in-roles";
+import { logger } from "../logger";
 
-type OrgParams = {
-  roles?: AuthRole[];
-  permissions?: AuthPermission;
-};
+/**
+ * B2C Mode: Récupère le contexte utilisateur avec ses abonnements
+ * (Ne pas confondre avec une organisation - c'est un contexte utilisateur)
+ */
+export const getCurrentUserContext = async () => {
+  const session = await getSession();
 
-const getOrg = async () => {
-  const user = await getSession();
-
-  if (user?.session.activeOrganizationId) {
-    return auth.api.getFullOrganization({
-      headers: await headers(),
-      query: {
-        organizationId: user.session.activeOrganizationId ?? undefined,
-      },
-    });
-  }
-
-  return null;
-};
-
-export const getCurrentOrg = async (params?: OrgParams) => {
-  const user = await getSession();
-
-  if (!user) {
+  if (!session?.user) {
     return null;
   }
 
-  const org = await getOrg();
+  const user = session.user;
 
-  if (!org) {
-    return null;
-  }
-
-  const memberRoles = org.members
-    .filter((member) => member.userId === user.session.userId)
-    .map((member) => member.role);
-
-  if (memberRoles.length === 0 || !isInRoles(memberRoles, params?.roles)) {
-    return null;
-  }
-
-  if (params?.permissions) {
-    const hasPermission = await auth.api.hasPermission({
-      headers: await headers(),
-      body: {
-        permission: params.permissions,
-      },
-    });
-
-    if (!hasPermission.success) {
-      return null;
+  try {
+    // Récupérer les headers de manière sécurisée (comme dans auth-user.ts)
+    let requestHeaders;
+    try {
+      requestHeaders = await headers();
+    } catch (headerError) {
+      logger.warn("Impossible d'obtenir les headers pour les abonnements", {
+        error: headerError.message,
+      });
+      requestHeaders = new Headers();
     }
+
+    // Récupérer les abonnements actifs de l'utilisateur (B2C)
+    const subscriptions = await auth.api.listActiveSubscriptions({
+      headers: requestHeaders,
+      query: {
+        referenceId: user.id,
+      },
+    });
+
+    const currentSubscription = subscriptions.find(
+      (s) =>
+        s.referenceId === user.id &&
+        (s.status === "active" || s.status === "trialing"),
+    );
+
+    return {
+      id: user.id,
+      name: user.name,
+      slug: user.id, // Identifiant unique de l'utilisateur
+      user: user,
+      email: user.email,
+      subscription: currentSubscription ?? null,
+    };
+  } catch (error: any) {
+    logger.error("Erreur lors de la récupération du contexte utilisateur", {
+      error: error.message,
+      userId: user.id,
+    });
+
+    // Retourner les données utilisateur de base même si les abonnements échouent
+    return {
+      id: user.id,
+      name: user.name,
+      slug: user.id,
+      user: user,
+      email: user.email,
+      subscription: null,
+    };
   }
-
-  const subscriptions = await auth.api.listActiveSubscriptions({
-    headers: await headers(),
-    query: {
-      referenceId: org.id,
-    },
-  });
-
-  const currentSubscription = subscriptions.find(
-    (s) =>
-      s.referenceId === org.id &&
-      (s.status === "active" || s.status === "trialing"),
-  );
-
-  const OWNER = org.members.find((m) => m.role === "owner");
-
-  return {
-    ...org,
-    user: user.user,
-    email: (OWNER?.user.email ?? null) as string | null,
-    memberRoles: memberRoles,
-    subscription: currentSubscription ?? null,
-  };
 };
 
-export type CurrentOrgPayload = NonNullable<
-  Awaited<ReturnType<typeof getCurrentOrg>>
+/**
+ * Alias pour la compatibilité avec le code existant
+ * TODO: Migrer progressivement vers getCurrentUserContext()
+ */
+export const getCurrentOrg = getCurrentUserContext;
+
+export type CurrentUserContextPayload = NonNullable<
+  Awaited<ReturnType<typeof getCurrentUserContext>>
 >;
 
-export const getRequiredCurrentOrg = async (params?: OrgParams) => {
-  const result = await getCurrentOrg(params);
+// Type alias pour compatibilité
+export type CurrentOrgPayload = CurrentUserContextPayload;
+
+export const getRequiredUserContext = async () => {
+  const result = await getCurrentUserContext();
 
   if (!result) {
     unauthorized();
@@ -96,3 +91,9 @@ export const getRequiredCurrentOrg = async (params?: OrgParams) => {
 
   return result;
 };
+
+/**
+ * Alias pour la compatibilité avec le code existant
+ * TODO: Migrer progressivement vers getRequiredUserContext()
+ */
+export const getRequiredCurrentOrg = getRequiredUserContext;

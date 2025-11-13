@@ -7,20 +7,20 @@ export default function MagicLinkMail({ url }: { url: string }) {
   return (
     <EmailLayout>
       <Preview>
-        You have requested a magic link to sign in to your account.
+        Vous avez demandé un lien magique pour vous connecter à votre compte.
       </Preview>
       <EmailSection>
-        <EmailText>Hello,</EmailText>
-        <EmailText>You request a magic link :</EmailText>
+        <EmailText>Bonjour,</EmailText>
+        <EmailText>Vous avez demandé un lien magique :</EmailText>
         <EmailText>
-          <EmailLink href={url}>Click here to sign in</EmailLink>
+          <EmailLink href={url}>Cliquez ici pour vous connecter</EmailLink>
         </EmailText>
         <EmailText>
-          If you didn't request this, please ignore this email.
+          Si vous n'avez pas fait cette demande, veuillez ignorer cet email.
         </EmailText>
       </EmailSection>
       <EmailText>
-        Best,
+        Cordialement,
         <br />- {SiteConfig.team.name} from {SiteConfig.title}
       </EmailText>
     </EmailLayout>

@@ -1,0 +1,281 @@
+{
+  "name": "Aiguilleur (Fixed - No Duplicates)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "batch-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-128, -16],
+      "id": "f3f020ca-28ad-483d-8de3-934502bc98a5",
+      "name": "📁 Batch Upload Webhook",
+      "webhookId": "156f48a0-faf4-4822-985b-8b60e6b3a888"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ VALIDATION DES AUDITS PRÉ-CRÉÉS\nconst payload = $json.body;\n\n// Validation des données d'entrée\nif (!payload.user_id) {\n  throw new Error('user_id manquant');\n}\nif (!payload.audits || !Array.isArray(payload.audits)) {\n  throw new Error('audits array manquant ou invalide');\n}\nif (payload.audits.length === 0) {\n  throw new Error('audits array vide');\n}\n\n// Validation de chaque audit\nfor (let i = 0; i < payload.audits.length; i++) {\n  const audit = payload.audits[i];\n  if (!audit.id) {\n    throw new Error(`Audit ${i}: id manquant`);\n  }\n  if (!audit.webhookId) {\n    throw new Error(`Audit ${i}: webhookId manquant`);\n  }\n  if (!audit.url) {\n    throw new Error(`Audit ${i}: url manquante`);\n  }\n  if (!audit.email) {\n    throw new Error(`Audit ${i}: email manquant`);\n  }\n}\n\nconst batchId = payload.correlation_id || `batch_${payload.user_id}_${Date.now()}`;\n\nconsole.log(`✅ Batch validé: ${payload.audits.length} audits pré-créés reçus`);\n\nreturn {\n  json: {\n    batchId: batchId,\n    userId: payload.user_id,\n    clientId: payload.client_id || 'premium-user',\n    batchName: payload.batch_name || 'Batch sans nom',\n    planId: payload.plan_id || 'premium',\n    totalAudits: payload.audits.length,\n    audits: payload.audits,\n    deliveryMethod: payload.delivery_method || 'dashboard',\n    timestamp: new Date().toISOString(),\n    source: payload.source || 'nowts'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [96, -16],
+      "id": "validate-prebuilt-audits",
+      "name": "✅ Validate Pre-Created Audits"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "preserve-batch-id",
+              "name": "batchId",
+              "value": "={{ $json.batchId }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-user-id",
+              "name": "userId",
+              "value": "={{ $json.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-client-id",
+              "name": "clientId",
+              "value": "={{ $json.clientId }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-batch-name",
+              "name": "batchName",
+              "value": "={{ $json.batchName }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-plan-id",
+              "name": "planId",
+              "value": "={{ $json.planId }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-total-audits",
+              "name": "totalAudits",
+              "value": "={{ $json.totalAudits }}",
+              "type": "number"
+            },
+            {
+              "id": "preserve-audits",
+              "name": "audits",
+              "value": "={{ $json.audits }}",
+              "type": "array"
+            },
+            {
+              "id": "preserve-delivery-method",
+              "name": "deliveryMethod",
+              "value": "={{ $json.deliveryMethod }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-timestamp",
+              "name": "timestamp",
+              "value": "={{ $json.timestamp }}",
+              "type": "string"
+            },
+            {
+              "id": "preserve-source",
+              "name": "source",
+              "value": "={{ $json.source }}",
+              "type": "string"
+            },
+            {
+              "id": "log-batch-id",
+              "name": "logMessage",
+              "value": "=Received batch {{ $json.batchId }} with {{ $json.totalAudits }} pre-created audits",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-batch-receipt",
+      "name": "📊 Log Batch Receipt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [320, -16]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "audits",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [544, -16],
+      "id": "split-audits-loop",
+      "name": "🔄 Loop Over Audits"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "audit-record-id",
+              "name": "recordId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "audit-webhook-id",
+              "name": "webhookId",
+              "value": "={{ $json.webhookId }}",
+              "type": "string"
+            },
+            {
+              "id": "audit-url",
+              "name": "url",
+              "value": "={{ $json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "audit-email",
+              "name": "email",
+              "value": "={{ $json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "audit-user-id",
+              "name": "userId",
+              "value": "={{ $('✅ Validate Pre-Created Audits').item.json.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "audit-batch-id",
+              "name": "batchId",
+              "value": "={{ $('✅ Validate Pre-Created Audits').item.json.batchId }}",
+              "type": "string"
+            },
+            {
+              "id": "delivery-method",
+              "name": "delivery_method",
+              "value": "={{ $('✅ Validate Pre-Created Audits').item.json.deliveryMethod }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-worker-context",
+      "name": "🎯 Prepare Worker Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [768, -16]
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "analysis_queue",
+        "messageData": "={{ JSON.stringify($json) }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [992, -16],
+      "id": "redis-enqueue",
+      "name": "📬 Redis Queue: Enqueue",
+      "credentials": {
+        "redis": {
+          "id": "kdn2BAHuLvJk5fcn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Batch reçu et en cours de traitement.\",\n  \"batchId\": \"{{ $('✅ Validate Pre-Created Audits').item.json.batchId }}\",\n  \"totalAudits\": {{ $('✅ Validate Pre-Created Audits').item.json.totalAudits }},\n  \"queuedAt\": \"{{ $now }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1216, -16],
+      "id": "respond-success",
+      "name": "✅ Réponse Immédiate"
+    }
+  ],
+  "connections": {
+    "📁 Batch Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "✅ Validate Pre-Created Audits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Validate Pre-Created Audits": {
+      "main": [
+        [
+          {
+            "node": "📊 Log Batch Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Log Batch Receipt": {
+      "main": [
+        [
+          {
+            "node": "🔄 Loop Over Audits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Loop Over Audits": {
+      "main": [
+        [
+          {
+            "node": "🎯 Prepare Worker Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Prepare Worker Context": {
+      "main": [
+        [
+          {
+            "node": "📬 Redis Queue: Enqueue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📬 Redis Queue: Enqueue": {
+      "main": [
+        [
+          {
+            "node": "✅ Réponse Immédiate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "1d18de6fa4b4bf428d5ac1ce990ec8e326eb8f84c35eafb7303e057ae0909c87"
+  }
+}

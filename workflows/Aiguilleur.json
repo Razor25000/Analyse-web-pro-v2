@@ -1,0 +1,236 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5adea2a2-3d5a-4c2a-95f8-eb26d0d8c23f",
+              "name": "recordId",
+              "value": "={{ $('📝 Create Individual Prospect').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "0a3810c7-6ded-4397-9a57-66e8f96de97d",
+              "name": "delivery_method",
+              "value": "={{ $('🔍 Parse CSV').item.json.deliveryMethod }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c1f9e6df-f299-4b02-9961-e841fe93d717",
+      "name": "Préparer Contexte Worker",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1024, -16]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "batch-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-128, -16],
+      "id": "f3f020ca-28ad-483d-8de3-934502bc98a5",
+      "name": "📁 CSV Upload Webhook",
+      "webhookId": "156f48a0-faf4-4822-985b-8b60e6b3a888"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📁 PARSER CSV + VALIDATION BATCH\nconst payload = $json.body;\n\n// Validation des données d'entrée\nif (!payload.user_id) {\n  throw new Error('user_id manquant');\n}\nif (!payload.csv_data) {\n  throw new Error('csv_data manquant');\n}\n\n// Parse du CSV (format basique : url,email)\nconst csvLines = payload.csv_data.trim().split('\\n');\nconst headers = csvLines[0].split(',').map(h => h.trim());\n\n// Validation des headers\nif (!headers.includes('url')) {\n  throw new Error('Colonne \"url\" manquante dans le CSV');\n}\n\n// Parsing des lignes\nconst prospects = [];\nconst errors = [];\n\nfor (let i = 1; i < csvLines.length; i++) {\n  const line = csvLines[i];\n  if (!line.trim()) continue; // Skip lignes vides\n  \n  const values = line.split(',').map(v => v.trim());\n  const rowData = {};\n  \n  headers.forEach((header, index) => {\n    rowData[header] = values[index] || '';\n  });\n  \n  let url = rowData.url;\n  if (!url) {\n    errors.push(`Ligne ${i + 1}: URL manquante`);\n    continue;\n  }\n  \n  if (!url.startsWith('http')) {\n    url = 'https://' + url;\n  }\n  \n  let email = rowData.email || `contact@${url.replace(/^https?:\\/\\//, '').split('/')[0]}`;\n  \n  prospects.push({\n    url: url,\n    email: email,\n    lineNumber: i + 1,\n    originalData: rowData\n  });\n}\n\nconst batchId = `batch_${payload.user_id}_${Date.now()}`;\n\nreturn {\n  json: {\n    batchId: batchId,\n    userId: payload.user_id,\n    clientId: payload.client_id || 'premium-user',\n    batchName: payload.batch_name || 'Batch sans nom',\n    totalProspects: prospects.length,\n    prospects: prospects,\n    errors: errors,\n    deliveryMethod: 'dashboard',\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [96, -16],
+      "id": "bcbdcdf1-a7b9-4344-96d0-4864267237ab",
+      "name": "🔍 Parse CSV"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔄 SPLIT PROSPECTS POUR TRAITEMENT INDIVIDUEL\nconst batch = $('🔍 Parse CSV').item.json;\n\nif (!batch || !Array.isArray(batch.prospects)) {\n  throw new Error(\"La liste des prospects n'a pas été trouvée.\");\n}\n\nconst items = batch.prospects.map((prospect, index) => ({\n  url: prospect.url,\n  email: prospect.email,\n  batchId: batch.batchId,\n  userId: batch.userId,\n  clientId: batch.clientId,\n  deliveryMethod: batch.deliveryMethod\n}));\n\nreturn items.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, -16],
+      "id": "2a72a59f-16e1-4c9c-ae55-64e08e609f4c",
+      "name": "🔄 Split Prospects"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "analysis_queue",
+        "messageData": "={{ JSON.stringify($json) }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1328, -16],
+      "id": "560ba365-346f-4ca9-8403-d83a1edbfb53",
+      "name": "Redis Queue: Enqueue",
+      "credentials": {
+        "redis": {
+          "id": "kdn2BAHuLvJk5fcn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Batch reçu et en cours de traitement.\",\n  \"batchId\": \"{{ $('🔍 Parse CSV').item.json.batchId }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1616, -16],
+      "id": "5f78e093-e12d-4e3c-a875-9d29bd0659e2",
+      "name": "✅ Réponse Immédiate"
+    },
+    {
+      "parameters": {
+        "tableId": "audits",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.userId }}"
+            },
+            {
+              "fieldId": "audit_type",
+              "fieldValue": "batch_analysis"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json.url }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pending"
+            },
+            {
+              "fieldId": "createdAt",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [704, -16],
+      "id": "42285b20-f58e-4df7-937e-cb206b04f82c",
+      "name": "📝 Create Individual Prospect",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AFmwLgvKQivO5ktd",
+          "name": "Supabase account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Préparer Contexte Worker": {
+      "main": [
+        [
+          {
+            "node": "Redis Queue: Enqueue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📁 CSV Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "🔍 Parse CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Parse CSV": {
+      "main": [
+        [
+          {
+            "node": "🔄 Split Prospects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Split Prospects": {
+      "main": [
+        [
+          {
+            "node": "📝 Create Individual Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Queue: Enqueue": {
+      "main": [
+        [
+          {
+            "node": "✅ Réponse Immédiate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Create Individual Prospect": {
+      "main": [
+        [
+          {
+            "node": "Préparer Contexte Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "📁 CSV Upload Webhook": [
+      {
+        "headers": {
+          "host": "n8n.redjice.shop",
+          "user-agent": "PostmanRuntime/7.45.0",
+          "content-length": "128",
+          "accept": "*/*",
+          "accept-encoding": "gzip, deflate, br",
+          "authorization": "Bearer FIX ME",
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "postman-token": "d18a99a7-cd51-4c06-8dfa-092c435ce8e6",
+          "x-forwarded-for": "5.49.214.220",
+          "x-forwarded-host": "n8n.redjice.shop",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "b0e752c174f8",
+          "x-real-ip": "5.49.214.220"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "user_id": "test-123",
+          "csv_data": "url,email\nexample.com,contact@example.com\nanother-site.fr,info@another-site.fr"
+        },
+        "webhookUrl": "https://n8n.redjice.shop/webhook/batch-upload",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "1d18de6fa4b4bf428d5ac1ce990ec8e326eb8f84c35eafb7303e057ae0909c87"
+  }
+}

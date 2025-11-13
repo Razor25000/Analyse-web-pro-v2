@@ -33,11 +33,11 @@ export default async function AuthSignInPage(props: PageParams) {
           </Avatar>
         </div>
         <CardHeader className="text-center">
-          Sign in to {SiteConfig.title}
+          Se connecter à {SiteConfig.title}
         </CardHeader>
 
         <CardDescription className="text-center">
-          Please sign in to your account to continue.
+          Connectez-vous à votre compte pour continuer.
         </CardDescription>
       </CardHeader>
       <CardContent className="mt-8">

@@ -1,20 +1,19 @@
-import type { Prisma } from "@/generated/prisma";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const createOrganizationQuery = async (
-  params: Prisma.OrganizationUncheckedCreateInput,
+  params: Prisma.UserCreateInput,
 ) => {
-  // const customer = await stripe.customers.create({
-  //   email: params.email,
-  //   name: params.name,
-  // });
-
-  const organization = await prisma.organization.create({
+  // In B2C model, creating an "organization" means creating/updating a user
+  // with organization-specific metadata
+  const user = await prisma.user.create({
     data: {
       ...params,
-      // stripeCustomerId: customer.id,
+      monthlyQuota: 10, // Default quota
+      quotaUsed: 0,
+      quotaResetDate: new Date(new Date().setMonth(new Date().getMonth() + 1)),
     },
   });
 
-  return organization;
+  return user;
 };

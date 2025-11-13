@@ -37,7 +37,6 @@ export async function createTestAccount(options: {
 
   // Wait for navigation to complete - we should be redirected to the callback URL
   if (callbackURL) {
-    await page.pause();
     await page.waitForURL(new RegExp(callbackURL), { timeout: 30000 });
   }
 

@@ -1,382 +1,240 @@
-import { supabase, supabaseAdmin } from "../supabase";
-
 /**
- * Bridge pour interagir avec Supabase
- * Centralise toutes les opérations sur les données métier
+ * SupabaseBridge Production v3.0
+ * Pont de synchronisation Prisma ↔ Supabase avec gestion UUID/CUID
  */
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
+import { createClient } from "@supabase/supabase-js";
+import { PrismaClient } from "@prisma/client";
+import { randomUUID } from "crypto";
+
 export class SupabaseBridge {
-  /**
-   * Synchronise un utilisateur de Better Auth vers Supabase profiles
-   * @param userId - ID utilisateur Better Auth (UUID)
-   * @param userEmail - Email de l'utilisateur
-   * @param fullName - Nom complet optionnel
-   * @param company - Entreprise optionnelle
-   */
-  static async syncUserToSupabase(
-    userId: string,
-    userEmail: string,
-    fullName?: string,
-    company?: string
-  ) {
-    if (!supabaseAdmin) {
-      console.warn("Supabase admin not available - skipping user sync");
-      return;
-    }
+  private readonly supabase;
+  private readonly prisma;
 
-    try {
-      // Vérifier si l'utilisateur existe déjà dans profiles
-      const { data: existingProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("user_id", userId)
-        .single();
-
-      if (!existingProfile) {
-        // Créer le profil utilisateur dans Supabase
-        const { error } = await supabaseAdmin
-          .from("profiles")
-          .insert({
-            user_id: userId,
-            email: userEmail,
-            full_name: fullName ?? null,
-            company: company ?? null,
-          });
-
-        if (error) {
-          console.error("Error syncing user to Supabase:", error);
-          throw new Error("Failed to sync user");
-        }
-      }
-    } catch (error) {
-      console.error("Error in syncUserToSupabase:", error);
-      // Ne pas faire échouer la requête principale
-    }
+  constructor() {
+    this.supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!,
+    );
+    this.prisma = new PrismaClient();
   }
 
   /**
-   * Récupère les audits d'un utilisateur
-   * @param userId - ID de l'utilisateur (UUID)
-   * @returns Liste des audits
+   * Génère un ID compatible UUID/CUID
    */
-  static async getUserAudits(userId: string) {
-    if (!supabase) {
-      console.warn("Supabase not available - returning empty audits");
-      return [];
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("audits")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching user audits:", error);
-        throw new Error("Failed to fetch audits");
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error("Error in getUserAudits:", error);
-      throw error;
-    }
+  private generateCompatibleId(): string {
+    return randomUUID();
   }
 
   /**
-   * Crée un nouvel audit
-   * @param audit - Données de l'audit
+   * Crée un audit avec synchronisation automatique
    */
-  static async createAudit(audit: {
-    user_id: string; // UUID
+  async createAudit(auditData: {
+    userId: string;
     email: string;
     url: string;
-    audit_type?: "manual" | "bulk" | "discovery";
-    status?: "pending" | "processing" | "completed" | "failed";
-    webhook_id?: string;
-    is_public?: boolean;
+    auditType?: string;
+    orgId?: string;
   }) {
-    if (!supabase) {
-      console.warn("Supabase not available - skipping audit creation");
-      return null;
-    }
-
     try {
-      const { data, error } = await supabase
-        .from("audits")
-        .insert({
-          user_id: audit.user_id,
-          email: audit.email,
-          url: audit.url,
-          audit_type: audit.audit_type ?? "manual",
-          status: audit.status ?? "pending",
-          webhook_id: audit.webhook_id ?? null,
-          is_public: audit.is_public ?? false,
-        })
-        .select()
-        .single();
+      // Générer un ID compatible
+      const auditId = this.generateCompatibleId();
 
-      if (error) {
-        console.error("Error creating audit:", error);
-        throw new Error("Failed to create audit");
-      }
+      // 1. Créer dans Prisma
+      const prismaAudit = await this.prisma.audit.create({
+        data: {
+          id: auditId,
+          userId: auditData.userId,
+          email: auditData.email,
+          url: auditData.url,
+          status: "pending",
+          auditType: auditData.auditType || "manual",
+          orgId: auditData.orgId,
+          webhookId: `audit-${Date.now()}`,
+        },
+      });
 
-      return data;
+      // 2. Synchroniser vers Supabase
+      await this.syncToSupabase(prismaAudit);
+
+      return prismaAudit;
     } catch (error) {
-      console.error("Error in createAudit:", error);
+      console.error("Erreur création audit:", error);
       throw error;
     }
   }
 
   /**
-   * Met à jour un audit avec status, résultats et score
-   * @param auditId - ID de l'audit (UUID)
-   * @param updates - Données à mettre à jour
+   * Synchronise un audit vers Supabase
    */
-  static async updateAudit(
-    auditId: string,
-    updates: {
-      status?: "pending" | "processing" | "completed" | "failed";
-      results_json?: Record<string, unknown>;
-      score_global?: number;
-      error_message?: string;
-    }
-  ) {
-    if (!supabase) {
-      console.warn("Supabase not available - skipping audit update");
-      return null;
-    }
-
+  async syncToSupabase(prismaAudit: any) {
     try {
-      const { data, error } = await supabase
+      const supabaseData = {
+        id: prismaAudit.id,
+        user_id: prismaAudit.userId,
+        audit_type: prismaAudit.auditType || "manual",
+        url: prismaAudit.url,
+        status: prismaAudit.status,
+        runId: prismaAudit.webhookId,
+        org_id: prismaAudit.orgId,
+      };
+
+      const { data, error } = await this.supabase
         .from("audits")
-        .update(updates)
-        .eq("id", auditId)
+        .upsert(supabaseData)
         .select()
         .single();
 
-      if (error) {
-        console.error("Error updating audit:", error);
-        throw new Error("Failed to update audit");
-      }
-
+      if (error) throw error;
       return data;
     } catch (error) {
-      console.error("Error in updateAudit:", error);
-      throw error;
+      console.warn("Erreur sync vers Supabase:", error.message);
+      return null;
     }
   }
 
   /**
-   * Récupère un audit par son webhook ID
-   * @param webhookId - ID du webhook
+   * Récupère et synchronise les audits complétés
    */
-  static async getAuditByWebhookId(webhookId: string) {
-    if (!supabase) {
-      console.warn("Supabase not available - returning null");
-      return null;
-    }
-
+  async syncCompletedAudits() {
     try {
-      const { data, error } = await supabase
+      const { data: completedAudits, error } = await this.supabase
         .from("audits")
         .select("*")
-        .eq("webhook_id", webhookId)
-        .single();
+        .eq("status", "completed");
 
-      if (error) {
-        console.error("Error fetching audit by webhook ID:", error);
-        return null;
-      }
+      if (error) throw error;
 
-      return data;
-    } catch (error) {
-      console.error("Error in getAuditByWebhookId:", error);
-      return null;
-    }
-  }
+      const results = [];
+      for (const supabaseAudit of completedAudits || []) {
+        try {
+          const updatedAudit = await this.prisma.audit.update({
+            where: { id: supabaseAudit.id },
+            data: {
+              status: supabaseAudit.status,
+              scoreGlobal: supabaseAudit.score_global,
+              scorePerformance: supabaseAudit.score_performance,
+              scoreSeo: supabaseAudit.score_seo,
+              scoreSecurity: supabaseAudit.score_security,
+              scoreModern: supabaseAudit.score_modern,
+              platformDetected: supabaseAudit.platform_detected,
+              htmlReport: supabaseAudit.html_report,
+              deliveryMethod: supabaseAudit.delivery_method,
+              completedAt: supabaseAudit.completed_at
+                ? new Date(supabaseAudit.completed_at)
+                : null,
+            },
+          });
 
-  /**
-   * Compte les audits d'un utilisateur pour le mois en cours
-   * @param userId - ID de l'utilisateur
-   */
-  static async getMonthlyAuditCount(userId: string) {
-    if (!supabase) {
-      console.warn("Supabase not available - returning 0");
-      return 0;
-    }
-
-    try {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const { count, error } = await supabase
-        .from("audits")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .gte("created_at", startOfMonth.toISOString());
-
-      if (error) {
-        console.error("Error counting monthly audits:", error);
-        return 0;
-      }
-
-      return count ?? 0;
-    } catch (error) {
-      console.error("Error in getMonthlyAuditCount:", error);
-      return 0;
-    }
-  }
-
-  /**
-   * Récupère les informations d'abonnement d'un utilisateur
-   * @param userEmail - Email de l'utilisateur
-   */
-  static async getUserSubscription(userEmail: string) {
-    if (!supabase) {
-      console.warn("Supabase not available - returning null");
-      return null;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("subscribers")
-        .select("*")
-        .eq("email", userEmail)
-        .single();
-
-      if (error) {
-        console.error("Error fetching user subscription:", error);
-        return null;
-      }
-
-      return data;
-    } catch (error) {
-      console.error("Error in getUserSubscription:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Met à jour l'usage du quota d'un utilisateur de manière atomique
-   * @param userEmail - Email de l'utilisateur
-   * @param increment - Nombre à ajouter au quota utilisé (défaut: 1)
-   */
-  static async incrementQuotaUsed(userEmail: string, increment = 1) {
-    if (!supabase) {
-      console.warn("Supabase not available - skipping quota update");
-      return null;
-    }
-
-    try {
-      // Essayer d'abord la fonction SQL atomique
-      const { data, error } = await supabase
-        .rpc('increment_quota_used', {
-          user_email: userEmail,
-          increment_by: increment
-        });
-
-      if (error) {
-        console.warn("RPC increment_quota_used failed, using fallback:", error.message);
-        
-        // Fallback: mise à jour manuelle (moins atomique mais fonctionnel)
-        const subscription = await this.getUserSubscription(userEmail);
-        if (subscription) {
-          const { data: updateData, error: updateError } = await supabase
-            .from("subscribers")
-            .update({ 
-              quota_used: (subscription.quota_used ?? 0) + increment,
-              updated_at: new Date().toISOString()
-            })
-            .eq("email", userEmail)
-            .select()
-            .single();
-          
-          if (updateError) {
-            console.error("Error in quota fallback update:", updateError);
-            throw new Error("Failed to update quota");
-          }
-          
-          return updateData;
-        } else {
-          throw new Error(`User with email ${userEmail} not found in subscribers`);
+          results.push(updatedAudit);
+        } catch (err) {
+          console.warn(`Erreur sync audit ${supabaseAudit.id}:`, err.message);
         }
       }
 
-      return data;
+      return results;
     } catch (error) {
-      console.error("Error in incrementQuotaUsed:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Récupère les audits d'une organisation
-   * @param orgId - ID de l'organisation
-   * @returns Liste des audits de l'organisation
-   */
-  static async getOrgAudits(orgId: string) {
-    if (!supabase) {
-      console.warn("Supabase not available - returning empty audits");
+      console.error("Erreur récupération audits complétés:", error);
       return [];
     }
+  }
 
+  /**
+   * Démarre un audit pour n8n
+   */
+  async startAuditForN8N(url: string, userEmail: string, userId?: string) {
+    return this.createAudit({
+      userId: userId || "anonymous",
+      email: userEmail,
+      url: url,
+      auditType: "discovery",
+    });
+  }
+
+  /**
+   * Trouve un audit par son webhookId (correlationId)
+   */
+  async getAuditByWebhookId(webhookId: string) {
+    return await this.prisma.audit.findFirst({
+      where: { webhookId },
+    });
+  }
+
+  /**
+   * Crée un audit avec un webhookId spécifique (pour le webhook handler)
+   */
+  async createAuditWithWebhookId(auditData: {
+    userId: string;
+    email: string;
+    url: string;
+    auditType?: string;
+    webhookId: string;
+    orgId?: string;
+  }) {
     try {
-      const { data, error } = await supabase
-        .from("audits")
-        .select("*")
-        .eq("org_id", orgId)
-        .order("created_at", { ascending: false });
+      const auditId = this.generateCompatibleId();
 
-      if (error) {
-        console.error("Error fetching org audits:", error);
-        throw new Error("Failed to fetch org audits");
-      }
+      const prismaAudit = await this.prisma.audit.create({
+        data: {
+          id: auditId,
+          userId: auditData.userId,
+          email: auditData.email,
+          url: auditData.url,
+          status: "pending",
+          auditType: auditData.auditType || "website_analysis",
+          webhookId: auditData.webhookId,
+          orgId: auditData.orgId,
+        },
+      });
 
-      return data || [];
+      await this.syncToSupabase(prismaAudit);
+      return prismaAudit;
     } catch (error) {
-      console.error("Error in getOrgAudits:", error);
+      console.error("Erreur création audit avec webhookId:", error);
       throw error;
     }
   }
 
   /**
-   * Récupère les quotas et leur statut pour un utilisateur
-   * @param userEmail - Email de l'utilisateur
-   * @returns Informations complètes sur les quotas
+   * Met à jour un audit avec les scores et données de complétion
    */
-  static async getQuotaStatus(userEmail: string) {
-    const subscription = await this.getUserSubscription(userEmail);
-    
-    if (!subscription) {
-      return {
-        email: userEmail,
-        quota_used: 0,
-        monthly_quota: 10, // Quota par défaut pour non-abonnés
-        quota_remaining: 10,
-        subscription_tier: "free",
-        subscribed: false,
-        quota_exceeded: false,
-      };
+  async updateAuditWithScores(
+    webhookId: string,
+    updateData: {
+      status: string;
+      scoreGlobal?: number;
+      scorePerformance?: number;
+      scoreSeo?: number;
+      scoreSecurity?: number;
+      scoreModern?: number;
+      platformDetected?: string;
+      htmlReport?: string;
+      completedAt?: Date;
+    },
+  ) {
+    try {
+      const updated = await this.prisma.audit.updateMany({
+        where: { webhookId },
+        data: updateData,
+      });
+
+      // Sync to Supabase
+      const audit = await this.getAuditByWebhookId(webhookId);
+      if (audit) {
+        await this.syncToSupabase(audit);
+      }
+
+      return updated;
+    } catch (error) {
+      console.error("Erreur mise à jour audit:", error);
+      throw error;
     }
+  }
 
-    const quotaUsed = subscription.quota_used ?? 0;
-    const monthlyQuota = subscription.monthly_quota ?? 0;
-    const quotaRemaining = Math.max(0, monthlyQuota - quotaUsed);
-    const quotaExceeded = quotaUsed >= monthlyQuota;
-
-    return {
-      email: userEmail,
-      quota_used: quotaUsed,
-      monthly_quota: monthlyQuota,
-      quota_remaining: quotaRemaining,
-      subscription_tier: subscription.subscription_tier ?? "free",
-      subscribed: subscription.subscribed ?? false,
-      quota_exceeded: quotaExceeded,
-      quota_reset_date: subscription.quota_reset_date,
-      subscription_end: subscription.subscription_end,
-    };
+  async disconnect() {
+    await this.prisma.$disconnect();
   }
 }
+
+// Export par défaut
+export default SupabaseBridge;

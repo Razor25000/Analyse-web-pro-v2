@@ -59,12 +59,12 @@ export const orgRoute = route
       permissions: AuthPermissionSchema.optional(),
     }),
   )
-  .use(async ({ next, metadata }) => {
-    const organization = await getCurrentOrg(metadata);
+  .use(async ({ next }) => {
+    const organization = await getCurrentOrg();
 
     if (!organization) {
       throw new ZodRouteError(
-        "You need to be part of an organization to access this resource.",
+        "You need to be authenticated to access this resource.",
         401,
       );
     }

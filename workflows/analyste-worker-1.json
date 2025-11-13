@@ -1,0 +1,921 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// =================================================================\n// MOTEUR D'ANALYSE V4.2 - PLAN D'ACTION GARANTI\n// =================================================================\n\nlet mergedData = $input.item.json;\nconst context = $('✅ Validate Record').item.json;\n\n// --- INITIALISATION ---\nif (!Array.isArray(mergedData)) {\n  mergedData = [mergedData];\n}\n\n// 1. ISOLATION DES DONNÉES D'ENTRÉE\nconst htmlData = mergedData.find(d => d && d.data && typeof d.data === 'string' && d.data.includes('<html'));\nconst headersData = mergedData.find(d => d && d.headers && d.statusCode);\nconst pagespeedData = mergedData.find(d => d && d.lighthouseResult);\nconst seoData = mergedData.find(d => d && (d.title !== undefined || d.metaDescription !== undefined));\n\n// 2. PRÉPARATION DES VARIABLES PRINCIPALES\nconst url = context.url;\nconst email = context.email;\nconst domain = context.domain;\nconst htmlContent = htmlData ? htmlData.data : '';\nconst headers = headersData || {};\nconst pagespeed = pagespeedData || {};\nconst seo = seoData || {};\n\n// 3. VÉRIFICATION CRITIQUE D'ACCESSIBILITÉ\nif (!htmlContent || htmlContent.length < 100) {\n  const errorResult = {\n    recordId: context.recordId, url, domain, email, timestamp: new Date().toISOString(), globalScore: 0, \n    prospectStatus: '❌ ERREUR - Site inaccessible', \n    recommendation: 'Le site est inaccessible ou bloqué, impossible de réaliser une analyse complète.',\n    modernityScore: 0, performanceScore: 0, seoScore: 0, securityScore: 0,\n    planOfAction: [{ \n      priority: '🚨 CRITIQUE', \n      category: 'Accessibilité', \n      action: \"Le site n'a pas pu être analysé car il est inaccessible ou protégé.\", \n      impact: 'Impossible de générer un audit fiable.', \n      urgency: 'Immédiate' \n    }],\n    issues: ['Site inaccessible ou protégé.'], positives: [], seoIssues: [], seoPassed: [], securityIssues: [], securityPassed: [], performanceIssues: [], performancePassed: []\n  };\n  return { json: errorResult };\n}\n\n// 4. INITIALISATION DES COLLECTEURS\nconst allIssues = []; // Centralise tous les problèmes détectés avec leur priorité\nconst issues = []; // Pour la catégorie Modernité/Design\nconst positives = [];\nconst seoIssues = [], seoPassed = [];\nconst securityIssues = [], securityPassed = [];\nconst performanceIssues = [], performancePassed = [];\n\n// ===========================================\n// ANALYSE MODERNITÉ & DESIGN\n// ===========================================\nlet modernityScore = 75;\nlet platformBonus = 0;\n\n// --- DÉBUT DE VOTRE LOGIQUE DE DÉTECTION DE PLATEFORME (INTÉGRALEMENT CONSERVÉE) ---\nconst isWix = /wix\\\\.com|wixstatic|wix-code|corvid\\\\.wix|_wix/gi.test(htmlContent);\nconst isWeebly = /weebly|weeblycdn|wsj\\\\.edgecastcdn\\\\.net.*weebly/gi.test(htmlContent);\nconst isJimdo = /jimdo|jimdocdn|jimdostatic/gi.test(htmlContent);\nconst isSiteW = /sitew|site-w\\\\.com/gi.test(htmlContent);\nconst isStrikingly = /strikingly|strikinglycdn/gi.test(htmlContent);\nconst isSystemeIO = /systeme\\\\.io|systemeio/gi.test(htmlContent);\nconst isWordPressCom = /wp\\\\.com|wordpress\\\\.com.*hosted|wpcomstaging|wpcom-helper/gi.test(htmlContent);\nconst isWordPressOrg = /wp-content|wp-includes|wp-json|wordpress/gi.test(htmlContent) && !isWordPressCom;\nconst hasElementor = /elementor/gi.test(htmlContent);\nconst hasDivi = /divi|elegant.*themes/gi.test(htmlContent);\nconst isSquarespace = /squarespace|sqsp\\\\.com|squarespacecdN/gi.test(htmlContent);\nconst isShopify = /shopify|cdn\\\\.shopify|shopifycdn/gi.test(htmlContent);\nconst isPrestaShop = /prestashop|ps_|prestashopuid/gi.test(htmlContent);\nconst isJoomla = /joomla|mootools|\\/media\\/system\\/js\\/|\\/templates\\/.*\\/|com_content|option=com_/gi.test(htmlContent);\nconst isWebflow = /webflow|wf-|webflow\\\\.js/gi.test(htmlContent);\nconst hasWebflowCMS = /w-dyn/gi.test(htmlContent);\nconst isDrupal = /drupal|sites\\/all\\/|sites\\/default\\/|\\/misc\\/drupal\\.js|drupal\\.behaviors/gi.test(htmlContent);\nconst isTypo3 = /typo3|t3-|typo3temp|fileadmin|typo3conf/gi.test(htmlContent);\nconst isMagento = /magento|mage\\/|\\/js\\/mage\\/|\\/skin\\/frontend\\/|magento_|varien/gi.test(htmlContent);\nconst isHubSpot = /hubspot|hs-scripts|hsforms|hbspt/gi.test(htmlContent);\nconst isGhost = /ghost|ghost\\.org|casper/gi.test(htmlContent);\nconst isMedium = /medium\\\\.com|medium-zoom/gi.test(htmlContent);\nconst isBlogger = /blogger|blogspot/gi.test(htmlContent);\nconst isNotion = /notion\\\\.so|notion-static/gi.test(htmlContent);\nconst isContentful = /contentful|ctfassets/gi.test(htmlContent);\nconst isFrontPage = /microsoft.*frontpage|fp_.*\\\\.js|fpclass/gi.test(htmlContent);\nconst isDreamweaver = /dreamweaver|dw_.*\\\\.js|spry/gi.test(htmlContent);\nconst isGoDaddy = /godaddy.*website|websitebuilder.*godaddy/gi.test(htmlContent);\n\nlet platformName = 'Autre';\nlet platformCategory = 'unknown';\nlet isPlatformLowEnd = false;\nlet isPlatformHighEnd = false;\n\nif (isWix) { platformName = 'Wix'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ Wix : SEO et personnalisation très limités'); issues.push(\"🔴 Pas de contrôle sur l'hébergement Wix\"); modernityScore -= 20; platformBonus = -10; allIssues.push({ text: 'Le site est construit sur Wix, ce qui limite fortement les optimisations techniques et SEO.', category: 'Modernité', priority: 2, impact: 'Difficulté à se classer sur Google et à faire évoluer le site.', urgency: 'Élevée' }); }\nelse if (isWeebly) { platformName = 'Weebly'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ Weebly : plateforme en déclin'); modernityScore -= 15; platformBonus = -8; }\nelse if (isJimdo) { platformName = 'Jimdo'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ Jimdo : options de design limitées'); modernityScore -= 15; platformBonus = -8; }\nelse if (isSiteW) { platformName = 'SiteW'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ SiteW : solution basique française'); modernityScore -= 15; platformBonus = -8; }\nelse if (isStrikingly) { platformName = 'Strikingly'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ Strikingly : limité aux sites one-page'); modernityScore -= 10; platformBonus = -4; }\nelse if (isSystemeIO) { platformName = 'Systeme.io'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ Systeme.io : orienté tunnel, pas site web'); modernityScore -= 12; platformBonus = -5; }\nelse if (isWordPressCom) { platformName = 'WordPress.com (hosted)'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ WordPress.com gratuit très limité'); positives.push('✅ WordPress détecté (version bridée)'); modernityScore -= 8; platformBonus = -2; }\nelse if (isWordPressOrg) { platformName = 'WordPress'; platformCategory = 'milieu-de-gamme'; positives.push('✅ WordPress auto-hébergé détecté'); modernityScore += 5; if (hasElementor) { positives.push('✅ Elementor détecté'); modernityScore += 8; platformBonus += 4; } else if (hasDivi) { positives.push('✅ Divi Builder détecté'); modernityScore += 6; platformBonus += 3; } else { issues.push('⚠️ WordPress sans page builder moderne'); modernityScore -= 5; } }\nelse if (isSquarespace) { platformName = 'Squarespace'; platformCategory = 'milieu-de-gamme'; positives.push('✅ Squarespace : design élégant'); modernityScore += 5; platformBonus = 3; }\nelse if (isShopify) { platformName = 'Shopify'; platformCategory = 'milieu-de-gamme'; positives.push('✅ Shopify : e-commerce professionnel'); modernityScore += 8; platformBonus = 4; }\nelse if (isPrestaShop) { platformName = 'PrestaShop'; platformCategory = 'milieu-de-gamme'; positives.push('✅ PrestaShop : e-commerce open source'); modernityScore += 4; platformBonus = 2; }\nelse if (isJoomla) { platformName = 'Joomla'; platformCategory = 'milieu-de-gamme'; issues.push('⚠️ Joomla : souvent obsolète et lent'); modernityScore -= 10; platformBonus = -4; allIssues.push({ text: 'Le site utilise Joomla, une technologie souvent complexe à maintenir et optimiser.', category: 'Modernité', priority: 3, impact: 'Coûts de maintenance élevés et performances moindres.', urgency: 'Moyenne' }); }\nelse if (isWebflow) { platformName = 'Webflow'; platformCategory = 'haut-de-gamme'; isPlatformHighEnd = true; positives.push('✅ Webflow : solution haut de gamme'); modernityScore += 15; platformBonus = 6; if (hasWebflowCMS) { positives.push('✅ Webflow CMS intégré'); modernityScore += 4; } }\nelse if (isDrupal) { platformName = 'Drupal'; platformCategory = 'haut-de-gamme'; isPlatformHighEnd = true; positives.push('✅ Drupal : CMS entreprise sécurisé'); modernityScore += 8; platformBonus = 5; }\nelse if (isFrontPage || isDreamweaver) { platformName = isFrontPage ? 'Microsoft FrontPage' : 'Adobe Dreamweaver'; platformCategory = 'obsolete'; isPlatformLowEnd = true; issues.push('🕰️ Technologie de création de site totalement obsolète.'); modernityScore -= 50; platformBonus = -20; allIssues.push({ text: `Le site semble avoir été créé avec ${platformName}, un outil complètement dépassé.`, category: 'Modernité', priority: 1, impact: 'Failles de sécurité, incompatibilité avec les navigateurs, image de marque très dégradée.', urgency: 'Immédiate' }); }\nelse if (isGoDaddy) { platformName = 'GoDaddy Website Builder'; platformCategory = 'bas-de-gamme'; isPlatformLowEnd = true; issues.push('⚠️ GoDaddy Builder très basique'); modernityScore -= 15; platformBonus = -8; }\nelse { platformName = 'Non identifié'; platformCategory = 'unknown'; issues.push('❓ Plateforme/CMS non identifié'); modernityScore -= 5; }\n// --- FIN DE VOTRE LOGIQUE DE DÉTECTION DE PLATEFORME ---\n\n\n// --- AJOUTS POUR AFFINER LA NOTE DE MODERNITÉ ---\nif (seo.viewport) { modernityScore += 10; positives.push('✅ Design responsive (adapté aux mobiles)'); } \nelse { \n    modernityScore -= 40; \n    issues.push('🚨 Site non responsive');\n    allIssues.push({ text: 'Le site n\\'est pas \"responsive\" et ne s\\'adapte pas aux mobiles et tablettes.', category: 'Modernité', priority: 1, impact: 'Perte de plus de 60% des visiteurs et pénalité majeure de Google.', urgency: 'Immédiate' });\n}\n\nif (!/<link[^>]*rel=[\"'](icon|shortcut icon)[\"'][^>]*>/i.test(htmlContent)) {\n    modernityScore -= 5;\n    issues.push('🟡 Favicon manquant');\n    allIssues.push({ text: 'Le site ne possède pas de favicon (icône d\\'onglet).', category: 'Modernité', priority: 4, impact: 'Manque de finition et de reconnaissance de la marque dans le navigateur.', urgency: 'Faible' });\n} else {\n    positives.push('✅ Favicon présent');\n}\nif (htmlContent.includes('<font') || htmlContent.includes('<center>')) {\n    modernityScore -= 15;\n    issues.push('🕰️ Utilisation de balises HTML obsolètes');\n    allIssues.push({ text: 'Le code source utilise des balises HTML obsolètes, signe d\\'un site très ancien.', category: 'Modernité', priority: 2, impact: 'Problèmes d\\'affichage sur les navigateurs modernes et image de marque dégradée.', urgency: 'Élevée' });\n}\nmodernityScore = Math.max(0, Math.min(100, modernityScore));\n\n\n// ===========================================\n// ANALYSE SEO\n// ===========================================\nlet seoScore = 0;\nif (/noindex/i.test(htmlContent)) {\n    seoScore = 0;\n    seoIssues.push('🚨 Balise \"noindex\" détectée');\n    allIssues.push({ text: 'La page contient une balise \"noindex\" qui bloque son référencement par Google.', category: 'SEO', priority: 1, impact: 'Visibilité nulle sur les moteurs de recherche.', urgency: 'Immédiate' });\n} else {\n    let tempSeoScore = 0;\n    if (!seo.title) { seoIssues.push('❌ Balise Titre manquante'); allIssues.push({ text: 'La balise Titre (title) est manquante, un élément fondamental pour le SEO.', category: 'SEO', priority: 2, impact: 'Facteur bloquant pour un bon référencement.', urgency: 'Élevée' }); }\n    else if (seo.title.length < 30 || seo.title.length > 65) { tempSeoScore += 10; seoIssues.push(`⚠️ Longueur du titre non optimale`); allIssues.push({ text: `La longueur du titre n'est pas optimale, ce qui réduit son attractivité sur Google.`, category: 'SEO', priority: 3, impact: 'Baisse du taux de clic.', urgency: 'Moyenne' }); }\n    else { tempSeoScore += 25; seoPassed.push('✅ Balise Titre optimisée'); }\n    \n    if (!seo.metaDescription) { tempSeoScore += 5; seoIssues.push('❌ Meta Description manquante'); allIssues.push({ text: 'La balise Meta Description est absente.', category: 'SEO', priority: 2, impact: 'Le texte de présentation sur Google sera généré automatiquement et souvent peu pertinent.', urgency: 'Élevée' }); }\n    else { tempSeoScore += 15; seoPassed.push('✅ Meta Description présente'); }\n    \n    if (!seo.h1 || seo.h1.length === 0) { seoIssues.push('❌ Balise H1 manquante'); allIssues.push({ text: 'Aucune balise H1 (titre principal) n\\'a été trouvée.', category: 'SEO', priority: 2, impact: 'Manque de structure sémantique claire pour Google.', urgency: 'Élevée' }); }\n    else if (seo.h1.length > 1) { tempSeoScore += 5; seoIssues.push(`⚠️ ${seo.h1.length} balises H1 trouvées`); allIssues.push({ text: 'La page contient plusieurs balises H1, ce qui dilue leur pertinence.', category: 'SEO', priority: 3, impact: 'Confusion potentielle pour les moteurs de recherche.', urgency: 'Moyenne' }); }\n    else { tempSeoScore += 25; seoPassed.push('✅ Balise H1 unique'); }\n    \n    if (seo.h2s && seo.h2s.length > 0) { tempSeoScore += 15; seoPassed.push('✅ Page structurée avec des H2'); } \n    else { seoIssues.push('🟡 Pas de H2'); }\n    \n    if (seo.imagesWithoutAlt && seo.imagesWithoutAlt.length > 0) { tempSeoScore += 5; seoIssues.push(`❌ ${seo.imagesWithoutAlt.length} images sans ALT`); allIssues.push({ text: 'Des images n\\'ont pas de texte alternatif (attribut ALT).', category: 'SEO', priority: 4, impact: 'Opportunité manquée pour le référencement d\\'images et l\\'accessibilité.', urgency: 'Faible' }); }\n    else { tempSeoScore += 10; seoPassed.push('✅ Attributs ALT présents'); }\n    \n    if (!seo.structuredData) { tempSeoScore += 5; seoIssues.push('🟡 Pas de données structurées'); allIssues.push({ text: 'Les données structurées (Schema.org) sont absentes.', category: 'SEO', priority: 3, impact: 'Le site n\\'apparaîtra pas avec des résultats enrichis (étoiles, avis, etc.) dans Google.', urgency: 'Moyenne' }); }\n    else { tempSeoScore += 10; seoPassed.push('✅ Données structurées détectées'); }\n    \n    seoScore = tempSeoScore;\n}\nseoScore = Math.max(0, Math.min(100, seoScore));\n\n// ===========================================\n// ANALYSE SÉCURITÉ\n// ===========================================\nlet securityScore = 50;\nif (!url.startsWith('https://')) {\n    securityScore = 10;\n    securityIssues.push('🚨 Site non sécurisé (HTTP)');\n    allIssues.push({ text: 'Le site n\\'est pas sécurisé par un certificat SSL (HTTPS).', category: 'Sécurité', priority: 1, impact: 'Les navigateurs affichent un avertissement, perte de confiance et de classement SEO.', urgency: 'Immédiate' });\n} else {\n    securityScore += 25;\n    securityPassed.push('✅ Connexion HTTPS sécurisée');\n}\nconst hstsHeader = headers.headers ? headers.headers['strict-transport-security'] : undefined;\nif (!hstsHeader) {\n    securityScore -= 15;\n    securityIssues.push('🟡 En-tête HSTS manquant');\n    allIssues.push({ text: 'L\\'en-tête de sécurité HSTS est manquant.', category: 'Sécurité', priority: 3, impact: 'Le site est plus vulnérable aux attaques de type \"man-in-the-middle\".', urgency: 'Moyenne' });\n} else {\n    securityScore += 25;\n    securityPassed.push('✅ En-tête HSTS présent');\n}\nsecurityScore = Math.max(0, Math.min(100, securityScore));\n\n// ===========================================\n// ANALYSE PERFORMANCE\n// ===========================================\nlet performanceScore = 0;\nif (pagespeed && pagespeed.lighthouseResult && pagespeed.lighthouseResult.categories.performance) {\n    performanceScore = Math.round(pagespeed.lighthouseResult.categories.performance.score * 100);\n    if (performanceScore < 50) {\n        performanceIssues.push(`🔴 Score très faible (${performanceScore}/100)`);\n        allIssues.push({ text: `Le site est très lent (Score Google : ${performanceScore}/100).`, category: 'Performance', priority: 2, impact: 'Expérience utilisateur frustrante, taux de rebond élevé et impact négatif sur le SEO.', urgency: 'Élevée' });\n    } else if (performanceScore < 90) {\n        performanceIssues.push(`🟡 Score moyen (${performanceScore}/100)`);\n        allIssues.push({ text: `Le site a une vitesse moyenne (Score Google : ${performanceScore}/100).`, category: 'Performance', priority: 3, impact: 'Des optimisations de la vitesse amélioreraient la rétention des visiteurs.', urgency: 'Moyenne' });\n    } else {\n        performancePassed.push(`✅ Excellente performance (${performanceScore}/100)`);\n    }\n} else {\n    performanceScore = 30; // Score pénalisant par défaut\n    performanceIssues.push(\"⚠️ Données PageSpeed indisponibles\");\n    allIssues.push({ text: \"L'analyse de la performance via l'API Google a échoué.\", category: 'Performance', priority: 4, impact: 'Impossible de vérifier la vitesse de chargement du site.', urgency: 'Faible' });\n}\n\n// ===========================================\n// SCORE GLOBAL FINAL\n// ===========================================\nconst baseGlobalScore = Math.round((modernityScore * 0.40) + (performanceScore * 0.15) + (seoScore * 0.30) + (securityScore * 0.15));\nlet globalScore = Math.max(0, Math.min(100, baseGlobalScore + platformBonus));\nif (!seo.viewport) {\n    globalScore = Math.round(globalScore * 0.7);\n}\n\n// =================================================================\n// NOUVEAU : CONSTRUCTION DU PLAN D'ACTION DYNAMIQUE (ROBUSTE)\n// =================================================================\nlet planOfAction = [];\nconst categoriesScores = [\n    { name: 'Modernité', score: modernityScore, issues: allIssues.filter(i => i.category === 'Modernité') },\n    { name: 'SEO', score: seoScore, issues: allIssues.filter(i => i.category === 'SEO') },\n    { name: 'Performance', score: performanceScore, issues: allIssues.filter(i => i.category === 'Performance') },\n    { name: 'Sécurité', score: securityScore, issues: allIssues.filter(i => i.category === 'Sécurité') }\n];\n\n// Trier les catégories par score, du plus bas au plus haut\ncategoriesScores.sort((a, b) => a.score - b.score);\n\n// Trier tous les problèmes par priorité (1 est le plus important)\nallIssues.sort((a, b) => a.priority - b.priority);\n\nlet addedTexts = new Set();\n\n// Fonction pour ajouter une recommandation si elle n'est pas déjà présente\nconst addRecommendation = (issue) => {\n    if (issue && !addedTexts.has(issue.text)) {\n        planOfAction.push(issue);\n        addedTexts.add(issue.text);\n    }\n};\n\n// 1. Prendre jusqu'à 2 actions de la catégorie LA PLUS FAIBLE\nconst weakestCategoryIssues = categoriesScores[0].issues.sort((a,b) => a.priority - b.priority);\nweakestCategoryIssues.slice(0, 2).forEach(addRecommendation);\n\n// 2. Prendre jusqu'à 2 actions de la DEUXIÈME catégorie la plus faible\nif (planOfAction.length < 3) {\n    const secondWeakestCategoryIssues = categoriesScores[1].issues.sort((a,b) => a.priority - b.priority);\n    secondWeakestCategoryIssues.slice(0, 2).forEach(addRecommendation);\n}\n\n// 3. Si on n'a toujours pas 3 actions, on complète avec les problèmes les plus prioritaires, toutes catégories confondues\nif (planOfAction.length < 3) {\n    allIssues.forEach(issue => {\n        if (planOfAction.length < 3) {\n            addRecommendation(issue);\n        }\n    });\n}\n\n// On s'assure de n'avoir que 3 actions au final\nplanOfAction = planOfAction.slice(0, 3);\n\n\n// ===========================================\n// STATUT PROSPECT\n// ===========================================\nlet prospectStatus = '';\nlet priority = '';\nlet recommendation = '';\nif (globalScore < 30) { prospectStatus = '🔥🔥 HOT LEAD - Site très obsolète'; priority = 'URGENTE'; recommendation = `Refonte complète urgente sur ${platformName}. Le site nuit gravement à l'image de marque.`; }\nelse if (globalScore < 50) { prospectStatus = '🔥 EXCELLENT PROSPECT - Modernisation critique'; priority = 'HAUTE'; recommendation = `Modernisation ${platformName} importante nécessaire pour rester compétitif.`; }\nelse if (globalScore < 70) { prospectStatus = '✅ BON PROSPECT - Améliorations significatives'; priority = 'MOYENNE'; recommendation = `Des améliorations ciblées sur ${platformName} apporteraient une vraie valeur ajoutée.`; }\nelse if (globalScore < 90) { prospectStatus = '🌟 SITE PERFORMANT - Optimisations possibles'; priority = 'FAIBLE'; recommendation = `Le site ${platformName} est performant. Des services de maintenance ou d'optimisation ciblée pourraient l'amener au niveau supérieur.`; }\nelse { prospectStatus = '🏆 SITE EXCELLENT - Pas d\\'action requise'; priority = 'AUCUNE'; recommendation = `Félicitations, le site ${platformName} est excellent. Aucune refonte n'est nécessaire dans l'immédiat.`; }\n\n// ===========================================\n// SORTIE JSON FINALE\n// ===========================================\nconst finalResult = {\n  recordId: context.recordId,\n  url, domain, email, \n  timestamp: new Date().toISOString(), \n  globalScore, \n  prospectStatus,\n  recommendation,\n  priority,\n  modernityScore, \n  performanceScore, \n  seoScore, \n  securityScore,\n  platformAnalysis: { \n    platform: platformName, \n    category: platformCategory, \n  },\n  planOfAction,\n  // Données détaillées pour le rapport (si besoin un jour)\n  issues, \n  positives,\n  seoIssues,\n  seoPassed,\n  securityIssues,\n  securityPassed,\n  performanceIssues,\n  performancePassed\n};\n\nreturn { json: finalResult };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1072, 64],
+      "id": "db246063-2709-4a34-8f27-46bcf07aee9c",
+      "name": "🧠 Analysis Engine"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "audits",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.recordId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "analysis_completed"
+            },
+            {
+              "fieldId": "score_global",
+              "fieldValue": "={{ $json.globalScore }}"
+            },
+            {
+              "fieldId": "platform_detected",
+              "fieldValue": "={{ $json.platformAnalysis.platform }}"
+            },
+            {
+              "fieldId": "runId",
+              "fieldValue": "={{ $json.workerId || 'analysis' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-848, 64],
+      "id": "b23c3a75-539a-47b2-ad91-e16cee5938e9",
+      "name": "📝 Update Supabase Results",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AFmwLgvKQivO5ktd",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// EMAIL SIMPLE + AUDIT COMMERCIAL COMPLET POUR PROSPECTION\n// Version optimisée pour cold call, cold email et présentations\n\n// Récupération des données\nlet analysisData = null;\ntry {\n  analysisData = $('🧠 Analysis Engine').item.json;\n} catch (error) {\n  analysisData = {\n    domain: 'site-inconnu',\n    globalScore: 0,\n    prospectStatus: 'Données manquantes',\n    modernityScore: 0,\n    performanceScore: 0,\n    seoScore: 0,\n    securityScore: 0,\n    planOfAction: [],\n    issues: [],\n    positives: [],\n    seoIssues: [],\n    seoPassed: [],\n    securityIssues: [],\n    securityPassed: [],\n    performanceIssues: [],\n    performancePassed: []\n  };\n}\n\nconst safeData = {\n  domain: analysisData.domain || 'site-inconnu',\n  globalScore: analysisData.globalScore || 0,\n  prospectStatus: analysisData.prospectStatus || 'Analyse terminée',\n  modernityScore: analysisData.modernityScore || 0,\n  performanceScore: analysisData.performanceScore || 0,\n  seoScore: analysisData.seoScore || 0,\n  securityScore: analysisData.securityScore || 0,\n  planOfAction: analysisData.planOfAction || [],\n  platformAnalysis: analysisData.platformAnalysis || { platform: 'Non identifié' },\n  issues: analysisData.issues || [],\n  positives: analysisData.positives || [],\n  seoIssues: analysisData.seoIssues || [],\n  seoPassed: analysisData.seoPassed || [],\n  securityIssues: analysisData.securityIssues || [],\n  securityPassed: analysisData.securityPassed || [],\n  performanceIssues: analysisData.performanceIssues || [],\n  performancePassed: analysisData.performancePassed || [],\n  ...analysisData\n};\n\n// ===========================================\n// EMAIL SIMPLE ET PROFESSIONNEL\n// ===========================================\nconst emailHTML = `\n<!DOCTYPE html>\n<html lang=\"fr\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Audit terminé - ${safeData.domain}</title>\n</head>\n<body style=\"margin: 0; padding: 0; background-color: #f8f9fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n    <table style=\"width: 100%; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);\" cellpadding=\"0\" cellspacing=\"0\">\n        \n        <!-- Header -->\n        <tr>\n            <td style=\"background: linear-gradient(135deg, #2563EB 0%, #1e40af 100%); padding: 30px; text-align: center; color: white;\">\n                <h1 style=\"margin: 0; font-size: 24px; font-weight: 600; color: white;\">\n                    Audit technique terminé\n                </h1>\n                <p style=\"margin: 10px 0 0 0; font-size: 16px; opacity: 0.9; color: white;\">\n                    ${safeData.domain}\n                </p>\n            </td>\n        </tr>\n        \n        <!-- Message principal -->\n        <tr>\n            <td style=\"padding: 40px 30px; text-align: left;\">\n                <p style=\"margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #2c3e50;\">\n                    Bonjour,\n                </p>\n                \n                <p style=\"margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #2c3e50;\">\n                    L'audit technique du site <strong>${safeData.domain}</strong> a été réalisé avec succès.\n                </p>\n                \n                <p style=\"margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #2c3e50;\">\n                    Vous trouverez en pièce jointe le rapport complet d'analyse qui inclut :\n                </p>\n                \n                <ul style=\"margin: 0 0 20px 20px; font-size: 16px; line-height: 1.8; color: #2c3e50;\">\n                    <li>Analyse détaillée des performances techniques</li>\n                    <li>Évaluation SEO complète</li>\n                    <li>Audit de sécurité</li>\n                    <li>Points d'amélioration prioritaires</li>\n                    <li>Arguments commerciaux pour vos présentations</li>\n                </ul>\n                \n                <p style=\"margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #2c3e50;\">\n                    Ce rapport est conçu pour vous aider dans vos démarches commerciales et présentations client.\n                </p>\n                \n                <p style=\"margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #2c3e50;\">\n                    Cordialement,<br>\n                    L'équipe d'audit automatisé\n                </p>\n            </td>\n        </tr>\n        \n        <!-- Footer -->\n        <tr>\n            <td style=\"padding: 20px; text-align: center; background: #f8f9fa; color: #6c757d; font-size: 14px;\">\n                <p style=\"margin: 0;\">\n                    Cet audit a été généré automatiquement<br>\n                    Support : regis.laffond@innovwebdesign.com\n                </p>\n            </td>\n        </tr>\n    </table>\n</body>\n</html>`;\n\n// ===========================================\n// AUDIT COMMERCIAL ULTRA-COMPLET\n// ===========================================\n\nfunction getScoreEmoji(score) {\n  if (score >= 80) return '🟢';\n  if (score >= 60) return '🟡';\n  if (score >= 40) return '🟠';\n  return '🔴';\n}\n\nfunction getScoreStatus(score) {\n  if (score >= 90) return 'EXCELLENT';\n  if (score >= 75) return 'BON';\n  if (score >= 50) return 'MOYEN';\n  if (score >= 25) return 'FAIBLE';\n  return 'CRITIQUE';\n}\n\nfunction generateCommercialArguments(data) {\n  const score = data.globalScore;\n  let arguments = [];\n  \n  if (score < 30) {\n    arguments = [\n      \"Le site présente des problèmes critiques qui nuisent directement à l'image de marque\",\n      \"La perte de crédibilité impacte négativement les ventes et la conversion\",\n      \"Les prospects quittent le site avant même de découvrir l'offre\",\n      \"Le référencement Google est défaillant, limitant la visibilité en ligne\",\n      \"La concurrence bénéficie d'un avantage significatif avec des sites mieux optimisés\",\n      \"Le ROI d'une refonte sera visible rapidement avec des améliorations majeures\"\n    ];\n  } else if (score < 50) {\n    arguments = [\n      \"Le site a du potentiel mais perd des opportunités commerciales importantes\",\n      \"Des améliorations ciblées peuvent doubler le taux de conversion\",\n      \"L'optimisation SEO permettrait d'augmenter significativement le trafic qualifié\",\n      \"La modernisation du design renforcerait la confiance des prospects\",\n      \"L'investissement dans l'optimisation se rentabilise rapidement\",\n      \"Une approche progressive permet d'améliorer les résultats sans refonte complète\"\n    ];\n  } else if (score < 70) {\n    arguments = [\n      \"Le site est solide mais peut encore gagner en performance commerciale\",\n      \"Des optimisations premium permettraient de distancer la concurrence\",\n      \"L'amélioration de l'expérience utilisateur boosterait les conversions\",\n      \"Le potentiel SEO non exploité représente du chiffre d'affaires en attente\",\n      \"Une maintenance proactive évite la dégradation des performances\",\n      \"L'investissement dans l'excellence technique justifie un positionnement premium\"\n    ];\n  } else {\n    arguments = [\n      \"Le site est déjà performant, démontrant une approche professionnelle\",\n      \"Des services de maintenance premium garantiraient la pérennité des performances\",\n      \"L'optimisation continue permet de maintenir l'avance concurrentielle\",\n      \"Des fonctionnalités avancées pourraient encore améliorer l'expérience client\",\n      \"La surveillance technique préventive évite les problèmes futurs\",\n      \"Un accompagnement expert maximise le potentiel de croissance\"\n    ];\n  }\n  \n  return arguments;\n}\n\nfunction generateDetailedIssues(category, issues, passed) {\n  if (issues.length === 0 && passed.length === 0) {\n    return `\n      <div style=\"background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;\">\n        <p style=\"margin: 0; color: #6c757d; font-style: italic;\">Aucune donnée disponible pour cette catégorie</p>\n      </div>\n    `;\n  }\n  \n  let html = '';\n  \n  if (passed.length > 0) {\n    html += `\n      <div style=\"background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin-bottom: 15px; border-radius: 4px;\">\n        <h4 style=\"margin: 0 0 10px 0; color: #155724; font-size: 16px;\">✅ Points forts détectés</h4>\n        <ul style=\"margin: 0; padding-left: 20px; color: #155724;\">\n          ${passed.map(item => `<li style=\"margin-bottom: 5px;\">${item.replace(/^✅\\s*/, '')}</li>`).join('')}\n        </ul>\n      </div>\n    `;\n  }\n  \n  if (issues.length > 0) {\n    html += `\n      <div style=\"background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; border-radius: 4px;\">\n        <h4 style=\"margin: 0 0 10px 0; color: #721c24; font-size: 16px;\">⚠️ Points d'amélioration détectés</h4>\n        <ul style=\"margin: 0; padding-left: 20px; color: #721c24;\">\n          ${issues.map(item => `<li style=\"margin-bottom: 5px;\">${item.replace(/^[❌⚠️🟡🔴]\\s*/, '')}</li>`).join('')}\n        </ul>\n      </div>\n    `;\n  }\n  \n  return html;\n}\n\nfunction generateColdCallScript(data) {\n  const score = data.globalScore;\n  let script = '';\n  \n  if (score < 50) {\n    script = `\n\"Bonjour [Nom], je me permets de vous contacter car j'ai analysé votre site ${data.domain} et j'ai identifié plusieurs points qui vous font perdre des clients potentiels. \n\nVotre site a obtenu un score de ${score}/100 dans notre audit technique, ce qui signifie que vous passez probablement à côté d'opportunités commerciales importantes. \n\nLes 3 problèmes principaux que j'ai identifiés peuvent être résolus rapidement et auraient un impact direct sur vos ventes. \n\nAvez-vous 10 minutes cette semaine pour que je vous montre concrètement ce qui peut être amélioré ?\"\n    `;\n  } else {\n    script = `\n\"Bonjour [Nom], j'ai analysé votre site ${data.domain} et je dois dire que vous avez fait du bon travail - votre score technique de ${score}/100 est au-dessus de la moyenne.\n\nCependant, j'ai identifié quelques optimisations qui pourraient encore booster vos performances et vous donner un avantage concurrentiel supplémentaire.\n\nSeriez-vous intéressé par une présentation rapide des améliorations qui pourraient faire passer votre site au niveau supérieur ?\"\n    `;\n  }\n  \n  return script;\n}\n\nconst auditHTML = `\n<!doctype html>\n<html lang=\"fr\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>Audit Commercial Complet - ${safeData.domain}</title>\n  <style>\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    \n    body { \n      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n      line-height: 1.6; \n      color: #2c3e50;\n      background: #f8f9fa;\n      padding: 20px;\n    }\n    \n    .container {\n      max-width: 900px;\n      margin: 0 auto;\n      background: white;\n      border-radius: 12px;\n      box-shadow: 0 4px 20px rgba(0,0,0,0.1);\n      overflow: hidden;\n    }\n    \n    .header {\n      background: linear-gradient(135deg, #2563EB 0%, #1e40af 100%);\n      color: white;\n      padding: 40px 30px;\n      text-align: center;\n    }\n    \n    .header h1 {\n      font-size: 32px;\n      font-weight: 700;\n      margin-bottom: 10px;\n    }\n    \n    .header h2 {\n      font-size: 20px;\n      opacity: 0.9;\n      font-weight: 400;\n    }\n    \n    .content {\n      padding: 30px;\n    }\n    \n    .section {\n      margin-bottom: 40px;\n      page-break-inside: avoid;\n    }\n    \n    .section h2 {\n      font-size: 24px;\n      font-weight: 700;\n      margin-bottom: 20px;\n      color: #2563EB;\n      border-left: 4px solid #2563EB;\n      padding-left: 15px;\n    }\n    \n    .section h3 {\n      font-size: 20px;\n      font-weight: 600;\n      margin: 20px 0 15px 0;\n      color: #1e40af;\n    }\n    \n    .scores-grid {\n      display: grid;\n      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n      gap: 20px;\n      margin-bottom: 30px;\n    }\n    \n    .score-card {\n      background: #f8f9fa;\n      border-radius: 12px;\n      padding: 25px;\n      text-align: center;\n      border-top: 4px solid;\n      box-shadow: 0 2px 10px rgba(0,0,0,0.1);\n    }\n    \n    .score-card.performance { border-color: #3498db; }\n    .score-card.seo { border-color: #2ecc71; }\n    .score-card.security { border-color: #e74c3c; }\n    .score-card.modernity { border-color: #9b59b6; }\n    \n    .score-number {\n      font-size: 48px;\n      font-weight: 700;\n      margin-bottom: 10px;\n    }\n    \n    .score-label {\n      font-size: 14px;\n      color: #6c757d;\n      font-weight: 600;\n      text-transform: uppercase;\n      letter-spacing: 1px;\n    }\n    \n    .global-score {\n      background: linear-gradient(135deg, #2563EB 0%, #1e40af 100%);\n      color: white;\n      padding: 30px;\n      border-radius: 12px;\n      text-align: center;\n      margin-bottom: 30px;\n    }\n    \n    .global-score .score {\n      font-size: 64px;\n      font-weight: 700;\n      margin-bottom: 10px;\n    }\n    \n    .commercial-box {\n      background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);\n      border-radius: 12px;\n      padding: 25px;\n      margin: 20px 0;\n    }\n    \n    .commercial-box h3 {\n      color: #2d3436;\n      margin-bottom: 15px;\n    }\n    \n    .argument-list {\n      list-style: none;\n      padding: 0;\n    }\n    \n    .argument-list li {\n      background: white;\n      margin-bottom: 10px;\n      padding: 12px 15px;\n      border-radius: 6px;\n      border-left: 4px solid #fdcb6e;\n      box-shadow: 0 1px 3px rgba(0,0,0,0.1);\n    }\n    \n    .action-plan {\n      background: #e8f4f8;\n      border-radius: 12px;\n      padding: 25px;\n      margin: 20px 0;\n    }\n    \n    .action-item {\n      background: white;\n      border-radius: 8px;\n      padding: 20px;\n      margin-bottom: 15px;\n      border-left: 4px solid;\n      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n    }\n    \n    .action-item.critical { border-color: #e74c3c; }\n    .action-item.important { border-color: #f39c12; }\n    .action-item.recommended { border-color: #3498db; }\n    \n    .cold-script {\n      background: #2c3e50;\n      color: white;\n      padding: 25px;\n      border-radius: 12px;\n      margin: 20px 0;\n      font-style: italic;\n      line-height: 1.8;\n    }\n    \n    @media print {\n      body { padding: 0; background: white; }\n      .container { box-shadow: none; }\n      .section { page-break-inside: avoid; }\n    }\n    \n    @media (max-width: 768px) {\n      body { padding: 10px; }\n      .scores-grid { grid-template-columns: 1fr; }\n      .content { padding: 20px; }\n    }\n  </style>\n</head>\n<body>\n\n<div class=\"container\">\n  <!-- Header -->\n  <div class=\"header\">\n    <h1>AUDIT COMMERCIAL COMPLET</h1>\n    <h2>${safeData.domain}</h2>\n    <p style=\"margin-top: 15px; opacity: 0.8;\">\n      Analysé le ${new Date().toLocaleDateString('fr-FR', { \n        year: 'numeric', \n        month: 'long', \n        day: 'numeric' \n      })}\n    </p>\n  </div>\n\n  <div class=\"content\">\n    \n    <!-- Score Global -->\n    <div class=\"global-score\">\n      <div class=\"score\">${safeData.globalScore}/100</div>\n      <div style=\"font-size: 20px; font-weight: 600;\">${getScoreEmoji(safeData.globalScore)} ${getScoreStatus(safeData.globalScore)}</div>\n      <div style=\"margin-top: 10px; opacity: 0.9;\">${safeData.prospectStatus}</div>\n    </div>\n    \n    <!-- Scores Détaillés -->\n    <div class=\"section\">\n      <h2>📊 Analyse Technique Détaillée</h2>\n      <div class=\"scores-grid\">\n        <div class=\"score-card performance\">\n          <div class=\"score-number\" style=\"color: #3498db;\">${safeData.performanceScore}</div>\n          <div class=\"score-label\">Performance</div>\n          <div style=\"margin-top: 10px; font-size: 24px;\">${getScoreEmoji(safeData.performanceScore)}</div>\n        </div>\n        <div class=\"score-card seo\">\n          <div class=\"score-number\" style=\"color: #2ecc71;\">${safeData.seoScore}</div>\n          <div class=\"score-label\">SEO</div>\n          <div style=\"margin-top: 10px; font-size: 24px;\">${getScoreEmoji(safeData.seoScore)}</div>\n        </div>\n        <div class=\"score-card security\">\n          <div class=\"score-number\" style=\"color: #e74c3c;\">${safeData.securityScore}</div>\n          <div class=\"score-label\">Sécurité</div>\n          <div style=\"margin-top: 10px; font-size: 24px;\">${getScoreEmoji(safeData.securityScore)}</div>\n        </div>\n        <div class=\"score-card modernity\">\n          <div class=\"score-number\" style=\"color: #9b59b6;\">${safeData.modernityScore}</div>\n          <div class=\"score-label\">Modernité</div>\n          <div style=\"margin-top: 10px; font-size: 24px;\">${getScoreEmoji(safeData.modernityScore)}</div>\n        </div>\n      </div>\n    </div>\n\n    <!-- Arguments Commerciaux -->\n    <div class=\"section\">\n      <h2>💼 Arguments Commerciaux</h2>\n      <div class=\"commercial-box\">\n        <h3>🎯 Points clés pour votre présentation</h3>\n        <ul class=\"argument-list\">\n          ${generateCommercialArguments(safeData).map(arg => `<li>${arg}</li>`).join('')}\n        </ul>\n      </div>\n    </div>\n\n    <!-- Analyse de Plateforme -->\n    <div class=\"section\">\n      <h2>🛠️ Analyse de la Plateforme</h2>\n      <div style=\"background: #f1f3f4; padding: 20px; border-radius: 8px;\">\n        <h3>Technologie détectée : ${safeData.platformAnalysis.platform}</h3>\n        <p><strong>Catégorie :</strong> ${safeData.platformAnalysis.category || 'Non classée'}</p>\n        <p style=\"margin-top: 15px;\">\n          Cette information vous permet d'adapter votre discours commercial selon la complexité technique \n          et les possibilités d'évolution de la solution actuelle du prospect.\n        </p>\n      </div>\n    </div>\n\n    <!-- Plan d'Action Prioritaire -->\n    <div class=\"section\">\n      <h2>🎯 Plan d'Action Prioritaire</h2>\n      <div class=\"action-plan\">\n        ${safeData.planOfAction.length > 0 ? \n          safeData.planOfAction.map((action, index) => {\n            let className = 'recommended';\n            if (action.priority === 1) className = 'critical';\n            else if (action.priority === 2) className = 'important';\n            \n            return `\n              <div class=\"action-item ${className}\">\n                <h4 style=\"margin-bottom: 10px;\">${index + 1}. ${action.category || 'Amélioration'}</h4>\n                <p style=\"font-weight: 600; margin-bottom: 8px;\">${action.text || action.action}</p>\n                <p style=\"color: #6c757d; font-size: 14px; margin-bottom: 5px;\">\n                  <strong>Impact :</strong> ${action.impact}\n                </p>\n                ${action.urgency ? `\n                  <p style=\"color: #e74c3c; font-size: 14px; font-weight: 600;\">\n                    Urgence : ${action.urgency}\n                  </p>\n                ` : ''}\n              </div>\n            `;\n          }).join('') :\n          '<p style=\"text-align: center; color: #28a745; font-weight: 600;\">Aucune action critique détectée. Le site présente un bon niveau technique.</p>'\n        }\n      </div>\n    </div>\n\n    <!-- Analyses Détaillées -->\n    <div class=\"section\">\n      <h2>🔍 Analyse Détaillée par Catégorie</h2>\n      \n      <h3>⚡ Performance & Vitesse</h3>\n      ${generateDetailedIssues('Performance', safeData.performanceIssues, safeData.performancePassed)}\n      \n      <h3>🎯 Référencement SEO</h3>\n      ${generateDetailedIssues('SEO', safeData.seoIssues, safeData.seoPassed)}\n      \n      <h3>🛡️ Sécurité & Conformité</h3>\n      ${generateDetailedIssues('Sécurité', safeData.securityIssues, safeData.securityPassed)}\n      \n      <h3>🎨 Design & Modernité</h3>\n      ${generateDetailedIssues('Modernité', safeData.issues, safeData.positives)}\n    </div>\n\n    <!-- Script Cold Call -->\n    <div class=\"section\">\n      <h2>📞 Script Cold Call / Cold Email</h2>\n      <div class=\"cold-script\">\n        <h3 style=\"color: #74b9ff; margin-bottom: 15px;\">Script d'approche recommandé :</h3>\n        <div style=\"white-space: pre-line;\">${generateColdCallScript(safeData)}</div>\n      </div>\n      \n      <div style=\"background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-top: 20px;\">\n        <h4 style=\"color: #856404; margin-bottom: 10px;\">💡 Conseils pour la présentation</h4>\n        <ul style=\"color: #856404; margin: 0; padding-left: 20px;\">\n          <li>Commencez par les points positifs pour établir la confiance</li>\n          <li>Présentez les problèmes comme des opportunités d'amélioration</li>\n          <li>Quantifiez l'impact business de chaque amélioration</li>\n          <li>Préparez des exemples concrets d'avant/après</li>\n          <li>Adaptez le niveau technique selon votre interlocuteur</li>\n        </ul>\n      </div>\n    </div>\n\n    <!-- Résumé Exécutif -->\n    <div class=\"section\">\n      <h2>📋 Résumé Exécutif</h2>\n      <div style=\"background: #f8f9fa; border-radius: 8px; padding: 25px;\">\n        <div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 20px;\">\n          <div>\n            <h4 style=\"color: #28a745; margin-bottom: 15px;\">✅ Forces identifiées</h4>\n            <ul style=\"margin: 0; padding-left: 20px; color: #155724;\">\n              ${[...safeData.performancePassed, ...safeData.seoPassed, ...safeData.securityPassed, ...safeData.positives]\n                .slice(0, 5)\n                .map(item => `<li>${item.replace(/^✅\\s*/, '')}</li>`)\n                .join('') || '<li>Analyse en cours</li>'}\n            </ul>\n          </div>\n          <div>\n            <h4 style=\"color: #dc3545; margin-bottom: 15px;\">⚠️ Points d'amélioration</h4>\n            <ul style=\"margin: 0; padding-left: 20px; color: #721c24;\">\n              ${[...safeData.performanceIssues, ...safeData.seoIssues, ...safeData.securityIssues, ...safeData.issues]\n                .slice(0, 5)\n                .map(item => `<li>${item.replace(/^[❌⚠️🟡🔴]\\s*/, '')}</li>`)\n                .join('') || '<li>Aucun problème majeur détecté</li>'}\n            </ul>\n          </div>\n        </div>\n        \n        <div style=\"margin-top: 25px; padding-top: 20px; border-top: 1px solid #dee2e6;\">\n          <h4 style=\"color: #2563EB; margin-bottom: 10px;\">🎯 Recommandation principale</h4>\n          <p style=\"margin: 0; font-size: 16px; line-height: 1.6;\">\n            ${safeData.globalScore < 50 ? \n              `Avec un score de ${safeData.globalScore}/100, ce site nécessite une attention immédiate pour éviter de perdre des opportunités commerciales. Les améliorations proposées peuvent significativement booster les performances business.` :\n              `Le site obtient un score honorable de ${safeData.globalScore}/100. Les optimisations recommandées permettraient de maximiser son potentiel et de distancer la concurrence.`\n            }\n          </p>\n        </div>\n      </div>\n    </div>\n\n    <!-- Footer -->\n    <div style=\"text-align: center; padding: 20px; background: #f8f9fa; margin-top: 30px; border-radius: 8px;\">\n      <p style=\"margin: 0; color: #6c757d; font-size: 14px;\">\n        Audit généré automatiquement • ${new Date().toLocaleDateString('fr-FR')} • \n        Support : regis.laffond@innovwebdesign.com\n      </p>\n    </div>\n\n  </div>\n</div>\n\n</body>\n</html>`;\n\n// Nettoyage pour Supabase\nfunction cleanForSupabase(htmlContent) {\n  if (!htmlContent || typeof htmlContent !== 'string') return '';\n  let cleaned = htmlContent.replace(/[\\x00-\\x1F\\x7F]/g, '');\n  if (cleaned.length > 100000) {\n    cleaned = cleaned.substring(0, 100000) + '...</body></html>';\n  }\n  return cleaned;\n}\n\n// Sujet email simple\nconst emailSubject = `Audit technique ${safeData.domain} - Rapport en pièce jointe`;\n\n// Nom de fichier\nconst cleanDomain = (safeData.domain || 'site-inconnu').replace(/[^a-zA-Z0-9]/g, '_');\nconst dateStr = new Date().toISOString().split('T')[0];\nconst filename = `Audit_Commercial_${cleanDomain}_${dateStr}.html`;\n\nreturn [{\n    json: {\n        emailHTML: emailHTML,\n        auditHTML: cleanForSupabase(auditHTML),\n        emailSubject: emailSubject,\n        filename: filename,\n        prospectType: 'commercial_audit',\n        domain: safeData.domain,\n        globalScore: safeData.globalScore,\n        timestamp: new Date().toISOString()\n    }\n}];"
+      },
+      "id": "e97039b2-1fcd-4e00-9adf-adc0fc1030cc",
+      "name": "📧 Générer Email + Audit HTML",
+      "type": "n8n-nodes-base.code",
+      "position": [-400, -128],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📎 CONVERTIR HTML EN BINARY POUR GMAIL\n// Prépare l'audit HTML comme pièce jointe\n\nconst data = $input.all()[0].json;\nconst auditHTML = data.auditHTML;\nconst filename = data.filename;\n\n// Conversion en Buffer puis base64 pour n8n\nconst htmlBuffer = Buffer.from(auditHTML, 'utf8');\nconst base64Data = htmlBuffer.toString('base64');\n\n// Calcul de la taille pour information\nconst sizeKB = Math.round(htmlBuffer.length / 1024);\n\nreturn [{\n    json: {\n        // Données email\n        emailHTML: data.emailHTML,\n        emailSubject: data.emailSubject,\n        prospectType: data.prospectType,\n        domain: data.domain,\n        globalScore: data.globalScore,\n        \n        // Métadonnées pièce jointe\n        attachmentName: filename,\n        attachmentMimeType: 'text/html',\n        attachmentSize: sizeKB + ' KB',\n        attachmentData: base64Data,\n        \n        // Debug info\n        processingTime: new Date().toISOString(),\n        auditGenerated: true\n    },\n    binary: {\n        audit_report: {\n            data: base64Data,\n            mimeType: 'text/html',\n            fileName: filename,\n            fileExtension: 'html'\n        }\n    }\n}];"
+      },
+      "id": "ec8ddd57-7be3-45e8-94bc-237ecb0c9e96",
+      "name": "📎 Préparer Pièce Jointe",
+      "type": "n8n-nodes-base.code",
+      "position": [-176, -128],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('✅ Validate Record').item.json.delivery_method }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bc1bc2d3-ba88-41be-9118-a655fbe75a77"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0f54ce46-c56c-45a2-811f-d68e437059cb",
+                    "leftValue": "={{ $('✅ Validate Record').item.json.delivery_method }}",
+                    "rightValue": "dashboard",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "dashboard"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4ca1fdfe-b180-42cf-b0a3-c77c015f5cdd",
+                    "leftValue": "={{ $('✅ Validate Record').item.json.delivery_method }}",
+                    "rightValue": "simple",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "simple"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-624, 48],
+      "id": "a9cb441b-d2b4-41c3-ae74-7c11db8126c9",
+      "name": "Delivery Dispatcher"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "audits",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('🧠 Analysis Engine').item.json.recordId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "Email envoyé"
+            },
+            {
+              "fieldId": "completedAt",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "score_global",
+              "fieldValue": "={{ $('🧠 Analysis Engine').item.json.globalScore }}"
+            },
+            {
+              "fieldId": "delivery_method",
+              "fieldValue": "email"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [272, -128],
+      "id": "62faaf0e-4ef0-42f6-a2fc-b193383152e3",
+      "name": "Update a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AFmwLgvKQivO5ktd",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📄 GENERATE HTML REPORT - 2 pages A4 max (recto/verso)\n// Version: 2.2 - VERSION PROFESSIONNELLE OPTIMISÉE IMPRESSION\n\nconst analysis = $('🧠 Analysis Engine').item?.json || {};\n\n// =========================================\n// CONFIGURATION\n// =========================================\nconst DEFAULT_CONFIG = {\n  agency_name: \"INNOVWEBDESIGN\",\n  agency_slogan: \"NOUS CRÉONS DES SITES WEB QUI CONVERTISSENT.\",\n  agency_proof: \"Nous aidons les entreprises à améliorer leur présence en ligne depuis 2016. En moyenne, nos clients voient une amélioration de 180% de leurs conversions dans les 6 mois.\",\n  contact_email: \"regis.laffond@innovwebdesign.com\",\n  contact_website: \"innovwebdesign.com\",\n  contact_phone: \"+33 6 29 71 31 66\",\n  theme_color: \"#4361EE\",\n  theme_color_light: \"#F0F2FD\",\n  hook_title: \"COMMENT BOOSTER VOS CONVERSIONS EN LIGNE ?\",\n  audit_title: \"AUDIT COMPLET DE VOTRE SITE WEB\",\n  impacts: [\n    { title: \"PLUS DE TRAFIC\", description: \"Un meilleur référencement peut multiplier vos visiteurs.\", icon: \"📈\" },\n    { title: \"PLUS DE CONVERSIONS\", description: \"Un site optimisé peut doubler votre taux de conversion.\", icon: \"💰\" },\n    { title: \"PLUS DE CRÉDIBILITÉ\", description: \"Un site professionnel renforce la confiance et justifie vos prix.\", icon: \"🏆\" }\n  ],\n  method: [\n    { title: \"ANALYSE & STRATÉGIE\", description: \"Nous commençons par un audit complet pour définir des objectifs clairs et une feuille de route précise.\", icon: \"🔍\" },\n    { title: \"DESIGN & DÉVELOPPEMENT\", description: \"Nous créons une interface moderne et un site performant, optimisé pour la conversion et le SEO.\", icon: \"💻\" },\n    { title: \"SUIVI & OPTIMISATION\", description: \"Après le lancement, nous analysons les résultats et continuons d'optimiser pour garantir votre croissance.\", icon: \"🚀\" }\n  ]\n};\nconst config = DEFAULT_CONFIG;\n\n// =========================================\n// FONCTIONS DE GÉNÉRATION HTML (contenu)\n// =========================================\nfunction generatePlanActionHTML(plan) {\n  if (!plan || plan.length === 0) {\n    return `<div class=\"bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-r-lg h-full flex flex-col justify-center\" role=\"alert\">\n              <p class=\"font-bold\">Excellent travail !</p><p>Aucun point d'amélioration majeur n'a été détecté.</p>\n            </div>`;\n  }\n  return plan.map(item => {\n    let icon = '💡'; let priorityColorClass = 'bg-gray-400'; let urgencyText = 'Faible';\n    if (item.category === 'Modernité') icon = '🎨'; if (item.category === 'SEO') icon = '🎯';\n    if (item.category === 'Sécurité') icon = '🛡️'; if (item.category === 'Performance') icon = '⚡';\n    \n    // Gestion de la priorité et de l'urgence\n    if (item.priority === 1) { priorityColorClass = 'bg-red-600'; urgencyText = 'Élevée'; }\n    else if (item.priority === 2) { priorityColorClass = 'bg-orange-500'; urgencyText = 'Moyenne'; }\n    else if (item.priority === 3) { priorityColorClass = 'bg-blue-500'; urgencyText = 'Faible'; }\n    \n    // Si urgency est défini dans l'objet, l'utiliser\n    if (item.urgency) urgencyText = item.urgency;\n    \n    return `<div class=\"bg-white border border-gray-200 rounded-lg p-3 mb-2 shadow-sm\">\n              <div class=\"flex items-center mb-2\"><span class=\"text-lg mr-2\">${icon}</span><h5 class=\"font-bold text-gray-500 uppercase text-xs tracking-wider\">${item.category}</h5></div>\n              <p class=\"text-sm font-semibold text-gray-800 mb-2\">${item.text}</p>\n              <p class=\"text-xs text-green-700 mb-2\"><strong>Impact :</strong> ${item.impact}</p>\n              <div class=\"text-right\"><span class=\"inline-block rounded-full px-2 py-1 text-xs font-bold text-white ${priorityColorClass}\">Urgence : ${urgencyText}</span></div>\n            </div>`;\n  }).join('');\n}\n\nfunction generateImpactsHTML(impacts) {\n  return impacts.map(i => `<div class=\"theme-bg-light rounded-xl p-3 text-center shadow-md\">\n      <div class=\"text-3xl mb-2\">${i.icon}</div><h4 class=\"font-bold text-sm text-gray-800\">${i.title}</h4>\n      <p class=\"text-gray-600 text-xs mt-1\">${i.description}</p></div>`).join('');\n}\n\nfunction generateMethodHTML(method) {\n  return method.map(m => `<div class=\"theme-bg-light rounded-xl p-4 flex items-center space-x-3\">\n        <div class=\"bg-white p-2 rounded-full text-2xl\">${m.icon}</div>\n        <div>\n            <h4 class=\"font-bold text-sm text-gray-800\">${m.title}</h4>\n            <p class=\"text-gray-600 text-xs mt-1\">${m.description}</p>\n        </div>\n    </div>`).join('');\n}\n\n// =========================================\n// GÉNÉRATION DU HTML COMPLET (gabarit 2 pages)\n// =========================================\nconst domain = analysis.domain || config.contact_website;\nconst htmlReport = `\n<!doctype html>\n<html lang=\"fr\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>Audit de Site Web - ${domain}</title>\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <link href=\"https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap\" rel=\"stylesheet\">\n  <style>\n    :root{ \n      --page-w:210mm; \n      --page-h:297mm; \n      --page-margin:15mm; \n      --content-w:calc(var(--page-w) - 2*var(--page-margin)); \n      --content-h:calc(var(--page-h) - 2*var(--page-margin)); \n    }\n    \n    html, body { \n      height: 100%; \n      margin: 0; \n      padding: 0; \n    }\n    \n    body{ \n      background: #F9FAFB; \n      font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif; \n      color: #111827; \n      font-size: 14px;\n    }\n    \n    .theme-bg{ background-color: ${config.theme_color}; }\n    .theme-text{ color: ${config.theme_color}; }\n    .theme-bg-light{ background-color: ${config.theme_color_light}; }\n    \n    .page{ \n      width: var(--page-w); \n      height: var(--page-h); \n      margin: 0 auto 20px; \n      background: #fff; \n      box-shadow: 0 4px 12px rgba(0,0,0,0.1); \n      position: relative; \n      box-sizing: border-box; \n      padding: var(--page-margin);\n      display: flex;\n      flex-direction: column;\n    }\n    \n    .page-content {\n      flex: 1;\n      display: flex;\n      flex-direction: column;\n    }\n    \n    .main-content {\n      flex: 1;\n    }\n    \n    .footer {\n      margin-top: auto;\n    }\n    \n    h1, h2, h3 { \n      margin: 0 0 16px 0; \n      line-height: 1.2; \n    }\n    \n    p { \n      margin: 0 0 12px 0; \n      line-height: 1.4; \n    }\n    \n    @media screen {\n      body { \n        padding: 20px; \n      }\n    }\n    \n    @media print {\n      @page { \n        size: A4 portrait; \n        margin: 0;\n        @top-left { content: \"\"; }\n        @top-center { content: \"\"; }\n        @top-right { content: \"\"; }\n        @bottom-left { content: \"\"; }\n        @bottom-center { content: \"\"; }\n        @bottom-right { content: \"\"; }\n      }\n      \n      body { \n        background: transparent; \n        margin: 0; \n        padding: 0; \n        font-size: 12px;\n      }\n      \n      .page { \n        box-shadow: none; \n        margin: 0; \n        height: 297mm;\n        width: 210mm;\n      }\n      \n      .page:first-of-type { \n        page-break-after: always; \n      }\n      \n      * { \n        -webkit-print-color-adjust: exact; \n        print-color-adjust: exact; \n      }\n      \n      .no-print { \n        display: none !important; \n      }\n    }\n  </style>\n</head>\n<body>\n\n  <!-- PAGE 1 -->\n  <div class=\"page\" id=\"page1\">\n    <div class=\"page-content\">\n      <header class=\"theme-bg text-white p-6 text-center rounded-lg mb-6\">\n        <h1 class=\"text-2xl font-extrabold leading-tight mb-2\">${config.hook_title}</h1>\n        <h2 class=\"text-base font-semibold\">${config.audit_title} pour <strong>${domain}</strong></h2>\n      </header>\n\n      <div class=\"main-content\">\n        <div class=\"grid grid-cols-2 gap-6 mb-6\">\n          <div>\n            <h3 class=\"text-base font-bold theme-text mb-4 text-center\">DIAGNOSTIC GLOBAL</h3>\n            <div class=\"bg-gray-100 rounded-lg p-4 text-center shadow-md\">\n              <div class=\"w-20 h-20 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg theme-bg\">${analysis.globalScore ?? '—'}</div>\n              <h4 class=\"font-bold text-sm text-gray-800\">Score Global Actuel</h4>\n              <p class=\"text-gray-600 text-xs mt-1\">${analysis.prospectStatus || '—'}</p>\n              <div class=\"grid grid-cols-2 gap-2 mt-3 text-xs text-center\">\n                <div class=\"bg-white p-2 rounded border\"><div class=\"font-bold text-purple-600\">${analysis.modernityScore ?? 'N/A'}/100</div><div class=\"text-gray-500 uppercase text-xs\">Modernité</div></div>\n                <div class=\"bg-white p-2 rounded border\"><div class=\"font-bold text-green-600\">${analysis.seoScore ?? 'N/A'}/100</div><div class=\"text-gray-500 uppercase text-xs\">SEO</div></div>\n                <div class=\"bg-white p-2 rounded border\"><div class=\"font-bold text-blue-600\">${analysis.performanceScore ?? 'N/A'}/100</div><div class=\"text-gray-500 uppercase text-xs\">Performance</div></div>\n                <div class=\"bg-white p-2 rounded border\"><div class=\"font-bold text-red-600\">${analysis.securityScore ?? 'N/A'}/100</div><div class=\"text-gray-500 uppercase text-xs\">Sécurité</div></div>\n              </div>\n            </div>\n          </div>\n\n          <div>\n            <h3 class=\"text-base font-bold theme-text mb-4 text-center\">PLAN D'ACTION PRIORITAIRE</h3>\n            <div class=\"space-y-2\">\n              ${generatePlanActionHTML(analysis.planOfAction ?? [])}\n            </div>\n          </div>\n        </div>\n\n        <div>\n          <h3 class=\"text-base font-bold theme-text mb-4 text-center\">L'IMPACT POSITIF DE CES CORRECTIONS</h3>\n          <div class=\"grid grid-cols-3 gap-3\">${generateImpactsHTML(config.impacts)}</div>\n        </div>\n      </div>\n\n      <!-- FOOTER PAGE 1 -->\n      <footer class=\"footer theme-bg text-white p-3 rounded-lg mt-4\">\n        <div class=\"flex justify-between items-center text-xs\">\n          <div>📧 ${config.contact_email}</div>\n          <div>🌐 ${config.contact_website}</div>\n          <div>📞 ${config.contact_phone}</div>\n          <div class=\"font-bold\">${config.agency_name}</div>\n        </div>\n      </footer>\n    </div>\n  </div>\n\n  <!-- PAGE 2 -->\n  <div class=\"page\" id=\"page2\">\n    <div class=\"page-content\">\n      <div class=\"main-content\">\n        <h3 class=\"text-xl font-bold theme-text mb-6 text-center\">Notre Méthode pour Atteindre vos Objectifs</h3>\n        \n        <div class=\"space-y-4 mb-6\">${generateMethodHTML(config.method)}</div>\n        \n        <div class=\"theme-bg-light p-6 rounded-2xl mb-6\">\n          <h4 class=\"font-extrabold text-base leading-tight theme-text text-center mb-2\">${config.agency_slogan}</h4>\n          <p class=\"text-sm text-gray-600 leading-relaxed text-center\">${config.agency_proof}</p>\n        </div>\n        \n        <div class=\"theme-bg text-white text-center p-6 rounded-lg shadow-lg\">\n          <h3 class=\"text-lg font-bold mb-2\">Prêt à transformer ces points faibles en forces ?</h3>\n          <p class=\"text-sm opacity-90 mb-4\">Discutons de ce plan d'action. Planifiez un appel de 15 minutes.</p>\n          <div class=\"flex flex-col sm:flex-row gap-3 justify-center items-center\">\n            <a href=\"mailto:${config.contact_email}?subject=Suite audit ${domain}&body=Bonjour,%0D%0A%0D%0AJ'ai reçu l'audit de mon site ${domain} et j'aimerais discuter du plan d'action.%0D%0A%0D%0AMerci !\" class=\"bg-white theme-text px-5 py-2 rounded-full font-bold shadow-lg text-sm\">📧 Discuter par email</a>\n            <a href=\"tel:${config.contact_phone}\" class=\"bg-transparent border-2 border-white text-white px-5 py-2 rounded-full font-bold text-sm\">📞 Appeler maintenant</a>\n          </div>\n        </div>\n      </div>\n\n      <!-- FOOTER PAGE 2 -->\n      <footer class=\"footer theme-bg text-white p-3 rounded-lg mt-4\">\n        <div class=\"text-center text-xs opacity-75\">\n          <p>Audit généré le ${new Date().toLocaleDateString('fr-FR')} • Données basées sur une analyse technique approfondie</p>\n        </div>\n      </footer>\n    </div>\n  </div>\n\n</body>\n</html>`;\n\n// =========================================\n// RETOUR DES DONNÉES\n// =========================================\nreturn { json: { htmlReport } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-400, 64],
+      "id": "9fb0300d-17c3-4974-8d53-7db342b68760",
+      "name": "📄 Generate HTML Report"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "audits",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('🧠 Analysis Engine').item.json.recordId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            },
+            {
+              "fieldId": "html_report",
+              "fieldValue": "={{ $json.htmlReport }}"
+            },
+            {
+              "fieldId": "completedAt",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "delivery_method",
+              "fieldValue": "dashboard"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-176, 64],
+      "id": "6c6e9902-6122-44d4-a5a4-f97388b88d77",
+      "name": "📊 Update Dashboard Status",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AFmwLgvKQivO5ktd",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "audits",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('🧠 Analysis Engine').item.json.recordId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "Terminé"
+            },
+            {
+              "fieldId": "completedAt",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "delivery_method",
+              "fieldValue": "simple"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-400, 256],
+      "id": "30f648c9-ab12-4e07-af3b-95ea5f6c365e",
+      "name": "📊 Update Simple Status",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AFmwLgvKQivO5ktd",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('✅ Validate Record').item.json.email }}",
+        "subject": "={{ $json.emailSubject }}",
+        "message": "={{ $json.emailHTML }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "audit_report"
+              }
+            ]
+          },
+          "bccList": "admin@votre-agence.com",
+          "ccList": "",
+          "replyTo": "regis.laffond@innovwebdesign.com"
+        }
+      },
+      "id": "b0ee828e-d12b-4088-93c1-f722863fcfea",
+      "name": "📧 Envoyer Email + Audit",
+      "type": "n8n-nodes-base.gmail",
+      "position": [48, -128],
+      "typeVersion": 2.1,
+      "webhookId": "86a16aa0-9c56-4c6b-88fd-68f40fbb6bc8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "mcTfbFIhZHLgvFAg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analyste-worker-1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-2864, 112],
+      "id": "dbfb5977-2682-4265-9141-0def10c0bae0",
+      "name": "🚀 Webhook Worker Trigger",
+      "webhookId": "analyste-worker-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "pop",
+        "list": "analysis_queue",
+        "propertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [-2640, 112],
+      "id": "a0a66b97-4f48-4a49-9281-ea02a6517d8b",
+      "name": "🔥 Redis: Dequeue Analysis",
+      "credentials": {
+        "redis": {
+          "id": "kdn2BAHuLvJk5fcn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sélection simple de la clé API\nconst API_KEYS = [\n  'AIzaSyCZC7D_5OPt_GIEAtAn6LVoQ4qXB-NVjlI',\n  'AIzaSyAqiPXn_IXVE3v7WynWssN25-PBJm2HjCo', \n  'AIzaSyC79JmCbo650-18Mk50gUxJy2Y7tQkkQ_g'\n];\n\n// Rotation simple basée sur l'heure\nconst keyIndex = new Date().getHours() % API_KEYS.length;\nconst selectedKey = API_KEYS[keyIndex];\n\nconsole.log(`Clé API sélectionnée: key${keyIndex + 1}`);\n\nreturn { \n  json: { \n    ...($json),\n    selectedApiKey: selectedKey,\n    keyIndex: keyIndex + 1\n  } \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1712, 320],
+      "id": "526cfce0-93bb-4a63-9d1b-92668eb3b903",
+      "name": "⚡ PageSpeed Pool Intelligent",
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"completed\",\n  \"recordId\": \"{{ $('🧩 Parse Context').item.json.recordId }}\",\n  \"timestamp\": \"{{ $now }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [496, -128],
+      "id": "2be2f60a-7fad-4773-afd0-63466327260e",
+      "name": "✅ Worker Completed Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// VALIDATION DES DONNÉES DE SUPABASE\nconst record = $json;\nconst context = $('🧩 Parse Context').item.json;\n\n// Vérifier que les champs requis existent\nif (!record.url) {\n  throw new Error('Champ URL manquant dans Supabase');\n}\n\n// Utiliser email_client au lieu de email\nlet email = record.email_client;\n// Après la ligne email = record.email_client;\nconsole.log('Email récupéré depuis Supabase:', email);\nconsole.log('Record complet:', JSON.stringify(record, null, 2));\nif (!email) {\n  email = `audit-${record.id}@auto-generated.com`;\n  console.log(`Email généré automatiquement: ${email}`);\n}\n\n// Nettoyage URL\nlet cleanUrl = String(record.url).trim();\nif (!cleanUrl.startsWith('http')) {\n  cleanUrl = 'https://' + cleanUrl;\n}\n\n// Extraction du domaine\nconst domainMatch = cleanUrl.match(/^(?:https?:\\/\\/)?(?:[^@\\n]+@)?(?:www\\.)?([^:\\/\\n?]+)/im);\nconst domain = domainMatch ? domainMatch[1] : null;\n\nif (!domain) {\n  throw new Error(`Impossible d'extraire le domaine de l'URL: ${cleanUrl}`);\n}\n\n// Merge contexte + données record\nconst enrichedContext = {\n  ...context,\n  url: cleanUrl,\n  domain: domain,\n  email: email, // Maintenant ça vient de email_client\n  originalRecord: record\n};\n\nreturn { json: enrichedContext };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1968, 112],
+      "id": "d7266483-9fb3-4778-94e4-c305f0ca7154",
+      "name": "✅ Validate Record"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "df26b227-5e02-4124-9aef-329e46b608d0",
+      "name": "📄 Fetch HTML1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-1744, -112],
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "HEAD",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "1c15a3db-68a8-4225-a5fa-efc7219df24a",
+      "name": "📊 Fetch Headers1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-1520, 112],
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 4,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-1296, 32],
+      "id": "6aa2230f-4707-4dce-9895-cd7be426be48",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "title"
+            },
+            {
+              "key": "metaDescription",
+              "cssSelector": "meta[name='description'], meta[property='og:description']",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "h1",
+              "cssSelector": "h1",
+              "returnArray": true
+            },
+            {
+              "key": "imagesWithoutAlt",
+              "cssSelector": "img:not([alt]), img[alt='']",
+              "returnValue": "attribute",
+              "attribute": "src",
+              "returnArray": true
+            },
+            {
+              "key": "structuredData",
+              "cssSelector": "script[type=\"application/ld+json\"]"
+            },
+            {
+              "key": "canonicalUrl",
+              "cssSelector": "link[rel=\"canonical\"]",
+              "returnValue": "attribute",
+              "attribute": "href"
+            },
+            {
+              "key": "h2s",
+              "cssSelector": "h2",
+              "returnArray": true
+            },
+            {
+              "key": "ogTitle",
+              "cssSelector": "meta[property=\"og:title\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "ogImage",
+              "cssSelector": "meta[property=\"og:image\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "twitterCard",
+              "cssSelector": "meta[name=\"twitter:card\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "allImageSources",
+              "cssSelector": "img",
+              "returnValue": "attribute",
+              "attribute": "src",
+              "returnArray": true
+            },
+            {
+              "key": "viewport",
+              "cssSelector": "meta[name=\"viewport\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "cssFiles",
+              "cssSelector": "link[rel=\\\"stylesheet\\\"]",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d5fa75da-cb05-41a2-8eb4-fe3f600cf3fe",
+      "name": "Extraire SEO1",
+      "type": "n8n-nodes-base.htmlExtract",
+      "position": [-1520, -176],
+      "typeVersion": 1,
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"completed\",\n  \"recordId\": \"{{ $('🧩 Parse Context').item.json.recordId }}\",\n  \"timestamp\": \"{{ $now }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [48, 64],
+      "id": "d572b665-aa84-4824-bc65-83f1a35374fb",
+      "name": "✅ Worker Completed Response1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"completed\",\n  \"recordId\": \"{{ $('🧩 Parse Context').item.json.recordId }}\",\n  \"timestamp\": \"{{ $now }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [-176, 256],
+      "id": "ccc484e7-9ad2-4ead-a629-a55405f63156",
+      "name": "✅ Worker Completed Response2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PARSING ULTRA-ROBUSTE DU CONTEXTE\nconst redisValue = $json.data;\n\nif (redisValue === null || redisValue === undefined) {\n  console.log('[WORKER] File vide, pas de traitement.');\n  return null;\n}\n\nlet context;\nif (typeof redisValue === 'string') {\n  try {\n    context = JSON.parse(redisValue);\n  } catch (e) {\n    throw new Error('Contexte JSON invalide: ' + e.message);\n  }\n} else if (typeof redisValue === 'object') {\n  context = redisValue;\n} else {\n  throw new Error('Donnée invalide depuis Redis: format inattendu.');\n}\n\n// CORRECTION : Gérer les différents noms de champs\nif (!context.recordId && context.id) {\n  context.recordId = context.id;\n}\n\n// NOUVEAU : Nettoyer l'UUID des guillemets/échappements supplémentaires\nif (context.recordId) {\n  let cleanId = String(context.recordId);\n  cleanId = cleanId.replace(/^[\"']|[\"']$/g, '');\n  cleanId = cleanId.replace(/\\\\\"/g, '\"');\n  \n  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)) {\n    throw new Error(`Format UUID invalide: ${cleanId}`);\n  }\n  \n  context.recordId = cleanId;\n}\n\nconst required = ['recordId', 'delivery_method'];\nfor (const field of required) {\n  if (!context[field]) {\n    throw new Error(`Champ requis manquant dans le contexte: ${field}`);\n  }\n}\n\nconsole.log(`[WORKER] Traitement pour recordId: ${context.recordId}`);\nreturn { json: context };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2416, 112],
+      "id": "bc3e0648-7bf2-40b3-a9f3-33e4962f696c",
+      "name": "🧩 Parse Context"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "audits",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.recordId }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-2192, 112],
+      "id": "3a78fd38-8345-4518-8224-f50de10e2b17",
+      "name": "📖 Supabase: Get Record",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AFmwLgvKQivO5ktd",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/pagespeedonline/v5/runPagespeed",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "category",
+              "value": "performance"
+            },
+            {
+              "name": "strategy",
+              "value": "desktop"
+            },
+            {
+              "name": "key",
+              "value": "={{ $json.selectedApiKey }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 200000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1472, 320],
+      "id": "1692e0c3-6ca6-49ab-8141-2bf9f3f658d0",
+      "name": "PageSpeed1",
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "🧠 Analysis Engine": {
+      "main": [
+        [
+          {
+            "node": "📝 Update Supabase Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Update Supabase Results": {
+      "main": [
+        [
+          {
+            "node": "Delivery Dispatcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Générer Email + Audit HTML": {
+      "main": [
+        [
+          {
+            "node": "📎 Préparer Pièce Jointe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📎 Préparer Pièce Jointe": {
+      "main": [
+        [
+          {
+            "node": "📧 Envoyer Email + Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delivery Dispatcher": {
+      "main": [
+        [
+          {
+            "node": "📧 Générer Email + Audit HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📄 Generate HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 Update Simple Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row": {
+      "main": [
+        [
+          {
+            "node": "✅ Worker Completed Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 Generate HTML Report": {
+      "main": [
+        [
+          {
+            "node": "📊 Update Dashboard Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Update Dashboard Status": {
+      "main": [
+        [
+          {
+            "node": "✅ Worker Completed Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Update Simple Status": {
+      "main": [
+        [
+          {
+            "node": "✅ Worker Completed Response2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Envoyer Email + Audit": {
+      "main": [
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 Webhook Worker Trigger": {
+      "main": [
+        [
+          {
+            "node": "🔥 Redis: Dequeue Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔥 Redis: Dequeue Analysis": {
+      "main": [
+        [
+          {
+            "node": "🧩 Parse Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚡ PageSpeed Pool Intelligent": {
+      "main": [
+        [
+          {
+            "node": "PageSpeed1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Validate Record": {
+      "main": [
+        [
+          {
+            "node": "📄 Fetch HTML1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 Fetch Headers1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "⚡ PageSpeed Pool Intelligent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 Fetch HTML1": {
+      "main": [
+        [
+          {
+            "node": "Extraire SEO1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "📊 Fetch Headers1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "🧠 Analysis Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire SEO1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧩 Parse Context": {
+      "main": [
+        [
+          {
+            "node": "📖 Supabase: Get Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📖 Supabase: Get Record": {
+      "main": [
+        [
+          {
+            "node": "✅ Validate Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "1d18de6fa4b4bf428d5ac1ce990ec8e326eb8f84c35eafb7303e057ae0909c87"
+  }
+}

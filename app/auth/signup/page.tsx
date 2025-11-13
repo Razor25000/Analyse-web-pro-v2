@@ -15,11 +15,28 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SignUpCredentialsForm } from "./sign-up-credentials-form";
 
-export default async function AuthSignInPage() {
+export default async function AuthSignInPage({
+  searchParams,
+}: {
+  searchParams: { plan?: string };
+}) {
   const user = await getUser();
 
+  // If user is logged in and no plan is specified, redirect to home
+  // If user is logged in and a plan is specified, redirect to Stripe checkout
   if (user) {
-    redirect("/");
+    if (searchParams.plan) {
+      redirect(
+        `/api/stripe/create-checkout-session?plan=${searchParams.plan}&userId=${user.id}`,
+      );
+    } else {
+      redirect("/");
+    }
+  }
+
+  // SÉCURITÉ: Rediriger vers pre-signup pour les plans payants
+  if (searchParams.plan && searchParams.plan !== "free") {
+    redirect(`/auth/pre-signup?plan=${searchParams.plan}&security=redirect`);
   }
 
   return (

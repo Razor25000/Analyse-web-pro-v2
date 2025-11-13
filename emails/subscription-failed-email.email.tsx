@@ -7,35 +7,36 @@ export default function SubscriptionFailedEmail({ url }: { url: string }) {
   return (
     <EmailLayout>
       <Preview>
-        Important information about your {SiteConfig.title} account
+        Informations importantes concernant votre compte {SiteConfig.title}
       </Preview>
       <EmailSection>
-        <EmailText>Hello,</EmailText>
+        <EmailText>Bonjour,</EmailText>
         <EmailText>
-          Your last payment didn't go through, so your extra features are on
-          hold.
+          Votre dernier paiement n'a pas abouti, vos fonctionnalités
+          supplémentaires sont donc en attente.
         </EmailText>
         <EmailText>
-          We've noticed an issue with your recent payment, which affects your
-          access to our premium features.
+          Nous avons remarqué un problème avec votre paiement récent, ce qui
+          affecte votre accès à nos fonctionnalités premium.
         </EmailText>
         <EmailText>
-          To resolve this and continue enjoying all the benefits, simply update
-          your payment details through the link below. It's quick and
-          straightforward!
+          Pour résoudre ce problème et continuer à profiter de tous les
+          avantages, mettez simplement à jour vos informations de paiement via
+          le lien ci-dessous. C'est rapide et simple !
         </EmailText>
         <EmailText>
           <EmailLink href={url}>
-            👉 Click to Update Payment and Keep Using {SiteConfig.title} 👈
+            👉 Cliquez pour mettre à jour le paiement et continuer à utiliser{" "}
+            {SiteConfig.title} 👈
           </EmailLink>
         </EmailText>
         <EmailText>
-          Thank you for your prompt attention to this matter. We're here to help
-          if you have any questions.
+          Merci pour votre attention rapide à ce sujet. Nous sommes là pour vous
+          aider si vous avez des questions.
         </EmailText>
       </EmailSection>
       <Text className="text-lg leading-6">
-        Best,
+        Cordialement,
         <br />- {SiteConfig.team.name} from {SiteConfig.title}
       </Text>
     </EmailLayout>
