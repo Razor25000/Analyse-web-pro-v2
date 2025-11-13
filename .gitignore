@@ -59,3 +59,7 @@ src/generated
 # Development logs
 dev.log
 dev2.lognul
+
+# Claude local settings
+.claude/settings.local.json
+*.local.json
