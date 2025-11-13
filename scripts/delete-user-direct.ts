@@ -1,5 +1,10 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { resolve } from "path";
 import { PrismaClient } from "@prisma/client";
+
+// Charger les variables d'environnement depuis .env.local puis .env
+config({ path: resolve(process.cwd(), ".env.local") });
+config({ path: resolve(process.cwd(), ".env") });
 
 const prisma = new PrismaClient();
 
